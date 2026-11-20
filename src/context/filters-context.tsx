@@ -1,69 +1,66 @@
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { LEAVE_TYPES, STATUSES } from '@/lib/constants'
+import { useI18n } from '@/i18n/i18n-context'
+import { CATEGORIES, STATUSES } from '@/lib/categories'
+import { isValidKey, todayKey } from '@/lib/dates'
 import {
-  dataBounds,
-  fromKey,
-  isValidKey,
+  canStep,
+  currentSheetWeek,
   periodLabel,
   periodRange,
-  shiftAnchor,
-  toKey,
-  todayKey,
-  type DayRange,
+  PERIODS,
+  snapToSheetWeek,
+  stepAnchor,
   type Period,
-} from '@/lib/dates'
-import type { Filters } from '@/lib/stats'
-import type { LeaveStatus, LeaveType } from '@/lib/types'
+  type WeekRange,
+} from '@/lib/periods'
+import type { RowFilters } from '@/lib/stats'
+import type { Category, RowStatus } from '@/lib/types'
 import { useLeaveData } from './data-context'
-import { useI18n } from '@/i18n/i18n-context'
 
-const PERIODS: Period[] = ['week', 'month', 'year', 'all']
-const DEFAULT_PERIOD: Period = 'month'
+/** Default view: the whole year of the latest sheet week (e.g. "2026"). */
+const DEFAULT_PERIOD: Period = 'year'
 
-interface FilterState extends Filters {
+interface FilterState extends RowFilters {
   period: Period
-  anchor: Date
-  /** Selected period, or null for "All time". */
-  range: DayRange | null
-  /** Range to draw charts over (for "All time": the span of the data). */
-  chartRange: DayRange | null
+  /** `yyyy-MM-dd` the period is built around (a sheet week start in week mode). */
+  anchor: string
+  range: WeekRange | null
   label: string
-  isCurrent: boolean
+  /** The sheet week containing today (or the latest before it) — for "this week" widgets. */
+  thisWeek: string | null
+  canPrev: boolean
+  canNext: boolean
+  isDefault: boolean
   /** Current query string ("?p=week&…"), to keep filters when navigating. */
   search: string
   setPeriod: (p: Period) => void
   step: (dir: -1 | 1) => void
-  setAnchor: (d: Date) => void
-  resetToToday: () => void
-  setFilter: (key: 'department' | 'type' | 'status', value: string | null) => void
+  setAnchor: (key: string) => void
+  reset: () => void
+  setFilter: (key: 'category' | 'status', value: string | null) => void
   clearFilters: () => void
   activeFilterCount: number
 }
 
 const FilterContext = createContext<FilterState | null>(null)
 
-/** Global period + filter state, stored in the URL query so views are shareable. */
+/** Global period + filter state, stored in the URL query so every view is shareable. */
 export function FilterProvider({ children }: { children: ReactNode }) {
   const [params, setParams] = useSearchParams()
   const { data } = useLeaveData()
   const { t: tr } = useI18n()
+  const weeks = data.sheetWeeks
 
   const p = params.get('p') as Period | null
   const period: Period = p && PERIODS.includes(p) ? p : DEFAULT_PERIOD
+  const latest = weeks.at(-1) ?? todayKey()
   const d = params.get('d')
-  // Default date: today — unless the data stops before this month (e.g. an old sheet export),
-  // then open on the latest week that has requests so the first view isn't empty.
-  const defaultKey = useMemo(() => {
-    const today = todayKey()
-    const latest = data.requests.reduce((m, r) => (r.startDate > m ? r.startDate : m), '')
-    return latest && latest < today.slice(0, 8) + '01' ? latest : today
-  }, [data.requests])
-  const anchorKey = isValidKey(d) ? d : defaultKey
-  const t = params.get('type') as LeaveType | null
-  const s = params.get('status') as LeaveStatus | null
-  const department = params.get('dept')
-  const type = t && LEAVE_TYPES.includes(t) ? t : null
+  const rawAnchor = isValidKey(d) ? d : latest
+  const anchor = period === 'week' ? snapToSheetWeek(rawAnchor, weeks) : rawAnchor
+  const c = params.get('cat') as Category | null
+  const s = params.get('status') as RowStatus | null
+  const category = c && CATEGORIES.includes(c) ? c : null
   const status = s && STATUSES.includes(s) ? s : null
 
   const update = useCallback(
@@ -79,40 +76,42 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     [setParams],
   )
 
-  const setAnchorKey = useCallback(
-    (next: URLSearchParams, key: string) => (key === defaultKey ? next.delete('d') : next.set('d', key)),
-    [defaultKey],
-  )
-
   const value = useMemo<FilterState>(() => {
-    const anchor = fromKey(anchorKey)
-    const range = periodRange(period, anchor)
-    const today = todayKey()
+    const setAnchorIn = (n: URLSearchParams, key: string) => (key === latest ? n.delete('d') : n.set('d', key))
     return {
       period,
       anchor,
-      department,
-      type,
+      category,
       status,
-      range,
-      chartRange: range ?? dataBounds(data.requests),
-      label: periodLabel(period, anchor, { weekOf: tr.period.weekOf, all: tr.period.all }),
-      isCurrent: period === 'all' || (!!range && range.start <= today && range.end >= today),
+      range: periodRange(period, anchor, weeks),
+      label: periodLabel(period, anchor, weeks, tr.period.all),
+      thisWeek: currentSheetWeek(weeks, todayKey()),
+      canPrev: canStep(period, anchor, -1, weeks),
+      canNext: canStep(period, anchor, 1, weeks),
+      isDefault: period === DEFAULT_PERIOD && !d,
       search: params.toString() ? `?${params.toString()}` : '',
-      setPeriod: (np) => update((n) => (np === DEFAULT_PERIOD ? n.delete('p') : n.set('p', np))),
-      step: (dir) => update((n) => setAnchorKey(n, toKey(shiftAnchor(period, anchor, dir)))),
-      setAnchor: (date) => update((n) => setAnchorKey(n, toKey(date))),
-      resetToToday: () => update((n) => setAnchorKey(n, todayKey())),
-      setFilter: (key, v) => update((n) => (v ? n.set(key === 'department' ? 'dept' : key, v) : n.delete(key === 'department' ? 'dept' : key))),
+      setPeriod: (np) =>
+        update((n) => {
+          if (np === DEFAULT_PERIOD) n.delete('p')
+          else n.set('p', np)
+          if (np === 'week') setAnchorIn(n, snapToSheetWeek(anchor, weeks))
+        }),
+      step: (dir) => update((n) => setAnchorIn(n, stepAnchor(period, anchor, dir, weeks))),
+      setAnchor: (key) => update((n) => setAnchorIn(n, period === 'week' ? snapToSheetWeek(key, weeks) : key)),
+      reset: () =>
+        update((n) => {
+          n.delete('p')
+          n.delete('d')
+        }),
+      setFilter: (key, v) => update((n) => (v ? n.set(key === 'category' ? 'cat' : key, v) : n.delete(key === 'category' ? 'cat' : key))),
       clearFilters: () =>
         update((n) => {
-          n.delete('dept')
-          n.delete('type')
+          n.delete('cat')
           n.delete('status')
         }),
-      activeFilterCount: [department, type, status].filter(Boolean).length,
+      activeFilterCount: [category, status].filter(Boolean).length,
     }
-  }, [anchorKey, period, department, type, status, params, data.requests, update, setAnchorKey, tr])
+  }, [period, anchor, category, status, weeks, latest, d, params, update, tr])
 
   return <FilterContext.Provider value={value}>{children}</FilterContext.Provider>
 }

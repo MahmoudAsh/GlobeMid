@@ -22,7 +22,7 @@ export function EmptyState({
       <span className="rounded-full bg-muted p-3 text-muted-foreground">
         <Icon className="size-5" aria-hidden />
       </span>
-      <p className="font-medium">{title ?? t.common.noLeaveTitle}</p>
+      <p className="font-medium">{title ?? t.common.noRows}</p>
       {description && <p className="max-w-sm text-sm text-muted-foreground">{description}</p>}
       {children}
     </div>

@@ -1,87 +1,93 @@
 import { Link } from 'react-router-dom'
-import { LeaveTypeLabel } from '@/components/leave-type'
+import { CategoryBadges } from '@/components/category'
+import { Approx, NotInFsrTag } from '@/components/roster-tag'
 import { StatusBadge } from '@/components/status-badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useFilters } from '@/context/filters-context'
-import { daysInRange, formatDate, formatDays, formatRange } from '@/lib/dates'
-import type { LeaveRequest } from '@/lib/types'
 import { useI18n } from '@/i18n/i18n-context'
+import { formatDays, formatWeek } from '@/lib/dates'
+import type { LeaveRow } from '@/lib/types'
 
-/** Days of the request, plus how many fall in the selected period when it's only partly inside. */
-export function DaysCell({ req }: { req: LeaveRequest }) {
-  const { range } = useFilters()
+/** Request text + note (partial decisions like "الخميس Rejected" live in the note). */
+export function RequestText({ row }: { row: LeaveRow }) {
   const { t } = useI18n()
-  const inPeriod = daysInRange(req, range)
-  const clipped = req.days > 0 && Math.abs(inPeriod - req.days) > 1e-9
   return (
-    <TableCell className="text-end whitespace-nowrap tabular-nums">
-      {req.days === 0 ? <span className="text-muted-foreground/60">—</span> : <span className="font-medium">{formatDays(req.days)}</span>}
-      {clipped && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="ms-1 cursor-help text-xs text-muted-foreground underline decoration-dotted underline-offset-2">
-              {t.requests.inPeriod(formatDays(inPeriod))}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>{t.requests.partlyInPeriod}</TooltipContent>
-        </Tooltip>
+    <div className="min-w-48 space-y-0.5">
+      <p dir="auto">{row.requestText || '—'}</p>
+      {row.note && (
+        <p dir="auto" className="text-xs text-status-pending">
+          {t.common.note}: {row.note}
+        </p>
       )}
-    </TableCell>
+    </div>
   )
 }
 
-export function RequestsTable({ requests, showEmployee = true }: { requests: LeaveRequest[]; showEmployee?: boolean }) {
+export function DaysCells({ row }: { row: LeaveRow }) {
+  const hasOther = row.categories.some((c) => c !== 'annual')
+  return (
+    <>
+      <TableCell className="text-end tabular-nums" title={row.annualCell || undefined}>
+        {row.annualDays ? <span className="font-medium">{formatDays(row.annualDays)}</span> : <span className="text-muted-foreground/60">—</span>}
+      </TableCell>
+      <TableCell className="text-end whitespace-nowrap tabular-nums">
+        {hasOther && row.otherDays ? (
+          <>
+            <Approx /> {formatDays(row.otherDays)}
+          </>
+        ) : (
+          <span className="text-muted-foreground/60">—</span>
+        )}
+      </TableCell>
+    </>
+  )
+}
+
+export function RequestsTable({ rows }: { rows: LeaveRow[] }) {
   const { search } = useFilters()
   const { t } = useI18n()
   const c = t.requests.col
-  // The weekly sheet has no submission date — hide the column instead of showing a row of dashes.
-  const showSubmitted = requests.some((r) => r.submittedAt)
   return (
-    <Table className={showEmployee ? 'min-w-[1000px]' : 'min-w-[760px]'}>
+    <Table className="min-w-[1050px]">
       <TableHeader>
         <TableRow>
-          {showEmployee && <TableHead>{c.employee}</TableHead>}
-          <TableHead>{c.dates}</TableHead>
-          <TableHead>{c.type}</TableHead>
-          <TableHead className="text-end">{c.days}</TableHead>
-          <TableHead>{c.reason}</TableHead>
+          <TableHead className="w-14">{c.row}</TableHead>
+          <TableHead>{c.employee}</TableHead>
+          <TableHead>{c.week}</TableHead>
+          <TableHead>{c.request}</TableHead>
+          <TableHead>{c.categories}</TableHead>
           <TableHead>{c.status}</TableHead>
-          {showSubmitted && <TableHead>{c.submitted}</TableHead>}
+          <TableHead className="text-end">{c.annual}</TableHead>
+          <TableHead className="text-end">{c.other}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {requests.map((r) => (
-          <TableRow key={r.id}>
-            {showEmployee && (
-              <TableCell>
-                <Link
-                  to={{ pathname: `/employees/${r.employeeId}`, search }}
-                  className="font-medium whitespace-nowrap hover:underline"
-                >
+        {rows.map((r) => (
+          <TableRow key={r.id} className="align-top">
+            <TableCell className="text-muted-foreground tabular-nums">{r.id}</TableCell>
+            <TableCell>
+              <div className="flex items-center gap-1.5">
+                <Link to={{ pathname: `/employees/${r.employeeId}`, search }} className="font-medium whitespace-nowrap hover:underline">
                   {r.employee}
                 </Link>
-                {(r.department || r.employeeRaw) && (
-                  <p className="text-xs text-muted-foreground">{r.department ?? t.common.writtenAs(r.employeeRaw!)}</p>
-                )}
-              </TableCell>
-            )}
-            <TableCell className="whitespace-nowrap">{formatRange(r.startDate, r.endDate)}</TableCell>
-            <TableCell>
-              <LeaveTypeLabel type={r.type} />
+                {!r.inFsrList && <NotInFsrTag />}
+              </div>
+              {r.rawName !== r.employee && <p className="text-xs text-muted-foreground">{t.common.writtenAs(r.rawName)}</p>}
             </TableCell>
-            <DaysCell req={r} />
-            <TableCell className="max-w-80 min-w-56 text-muted-foreground">
-              {r.reason || '—'}
+            <TableCell className="whitespace-nowrap">
+              {formatWeek(r.weekStart, r.weekEnd)}
+              <p className="text-xs text-muted-foreground">{r.weekLabel}</p>
+            </TableCell>
+            <TableCell>
+              <RequestText row={r} />
+            </TableCell>
+            <TableCell>
+              <CategoryBadges categories={r.categories} />
             </TableCell>
             <TableCell>
               <StatusBadge status={r.status} />
             </TableCell>
-            {showSubmitted && (
-              <TableCell className="whitespace-nowrap text-muted-foreground">
-                {r.submittedAt ? formatDate(r.submittedAt) : '—'}
-              </TableCell>
-            )}
+            <DaysCells row={r} />
           </TableRow>
         ))}
       </TableBody>

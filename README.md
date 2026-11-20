@@ -1,17 +1,17 @@
 # Leave Tracker
 
-A small internal, **read-only** web view of the team's leave requests (~55 employees).
-Frontend only, with no backend and no login. The real data lives in a Google Sheet that employees fill in;
-for now the app runs on realistic mock data.
+A small internal, **read-only** view of the team's leave, built from the manager's **"Weekly Requests"** Google
+Sheet. Frontend only, with no backend and no login.
 
 **Stack:** Vite · React · TypeScript · Tailwind CSS v4 · shadcn/ui · recharts (via shadcn chart) ·
-react-router (HashRouter) · date-fns · lucide-react.
+react-router (HashRouter) · date-fns · lucide-react · Vitest.
 
 ## Run it
 
 ```bash
 npm install
 npm run dev       # http://localhost:5173
+npm test          # unit + integration tests (Vitest)
 npm run build     # type-checks (tsc -b) and builds to dist/
 npm run preview   # serve the production build locally
 ```
@@ -22,53 +22,84 @@ Requires Node 20+.
 
 | Route | What it shows |
 | --- | --- |
-| `#/` Overview | Stat tiles, approved-days chart (stacked by type), breakdown by type, top 5, who's off this week |
-| `#/employees` | Every employee (including those with zero requests): sortable and searchable, with a totals row |
-| `#/employees/:id` | One person's report: tiles, chart, type breakdown, every request |
-| `#/requests` | All requests, newest first, with search and pagination |
+| `#/` Overview | Totals for the period, annual days by month, requests by category, top employees by annual days, this week's requests |
+| `#/employees` | One row per person: rows, approved / rejected / not marked, annual days, sick ≈, holidays ≈, birthdays, off changes, cancelled offs, and **FSR Annual Used vs Computed** (⚠ when they differ). Toggle *FSR list only / Everyone* |
+| `#/employees/:id` | Every row for that person, grouped by week (newest first): request text, categories, status, annual days, note. Also a per-category summary and the name variants merged into this person |
+| `#/requests` | All rows, with search, filters and pagination |
+| `#/data-check` | Unreadable weeks, non-Saturday weeks, unmatched names, unclassified request texts, and FSR vs computed mismatches. Use it to verify the numbers with the manager |
 
-The **filter bar** (Week / Month / Year / All time, prev / next / Today, department, type, status) is shared by
-every page. It lives in React context and in the URL query (e.g. `#/employees?p=year&d=2025-06-01&dept=Finance+%26+HR`),
-so any view can be bookmarked or shared.
+The **filter bar** (Week / Month / Year / All time, prev / next, category, status) is shared by every page and
+stored in the URL, so views can be bookmarked. It **defaults to the year of the latest sheet week** (e.g. 2026).
+Week mode steps through the weeks that actually exist in the sheet.
 
-### Languages (English / العربية)
+Also: English / العربية (full right-to-left), light / dark mode, and a phone-friendly layout.
 
-The navbar switch toggles **English** and **Arabic**. Arabic switches the whole layout to right-to-left
-(`dir="rtl"`), mirrors the charts and arrows, formats dates in Arabic (e.g. `20 نوفمبر 2026`) and uses
-IBM Plex Sans Arabic. The choice is remembered per browser.
-
-- Strings live in `src/i18n/en.ts` (source) and `src/i18n/ar.ts`. TypeScript fails the build if a key is
-  missing in Arabic.
-- Data from the sheet (names, departments, reasons) is shown exactly as written.
-- Numbers use Western digits (0–9) in both languages.
-
-### How the numbers are counted
-
-- A request **belongs to a period** if its date range overlaps the period.
-- **Approved days** = the day counts of approved requests (see *How rows are read* below).
-- Weeks run **Saturday to Friday**, matching the sheet (`WEEK_STARTS_ON` in `src/lib/constants.ts`).
-- "Off this week" and "Who's off this week" always use the real current week. They respect the type filter
-  and count annual, sick, day off, training and holiday requests, but not shift changes.
-- If the data stops before the current month, the app opens on the latest week that has data.
-- Every page uses the same functions in `src/lib/stats.ts`, so Overview, Employees and the Employee report
-  always agree.
-
-## Project layout
+## The data
 
 ```
-src/
-  lib/
-    types.ts         LeaveRequest, Employee
-    data-source.ts   loadLeaveData() — the ONLY place that knows where data comes from
-    mock-data.ts     invented demo data in the same shape as the real sheet
-    constants.ts     leave types + fixed colours, statuses, weekend, week start
-    dates.ts         periods, working days, overlap / in-period day maths
-    stats.ts         filtering and aggregation shared by all pages
-  i18n/              en / ar strings + language context (RTL)
-  context/           data loading + global filter state (URL-synced)
-  components/        layout, filter bar, chart, badges, tiles, tables
-  pages/             overview, employees, employee-report, requests
+src/data/
+  weekly-requests.csv   export of the "Weekly Requests" tab (Row, Name, Request, Status, Annual, Week, Note, RowColor)
+  fsrs.csv              the official FSR list + the sheet's manual "Annual Used" counter
+  name-aliases.json     misspelled / short name → canonical name. THE place to fix names.
+src/lib/sheet/          the parser (pure functions, unit-tested)
+  names.ts              normalize (non-breaking spaces, spaces, case) + aliases + FSR matching
+  weeks.ts              "27-12 to 2-1" → dates (Sat → Fri, year from a base year + Dec → Jan rollover)
+  annual.ts             Annual column → annual days (leading number of "N Day", never "sick")
+  status.ts             Approved / Rejected (or red row) / Sick / Training / empty → approved | rejected | not_marked
+  classifier.ts         keyword table → categories (EDIT THIS to add keywords)
+  parse.ts              puts it together → LeaveRow[] + employees + data-quality issues
+src/lib/config.ts       base year (2025) and the FSR counter start date (2026-03-28)
+src/lib/data-source.ts  the bundled CSV, or the live sheet when VITE_SHEET_CSV_URL is set
+src/lib/periods.ts      week / month / year / all on sheet weeks
+src/lib/stats.ts        aggregations shared by every page (so all pages agree)
 ```
+
+> ⚠️ `src/data/` contains real employee names. Keep the repository private.
+
+### How a row is read
+
+One row = one line the manager wrote for **one employee in one week**. There are no exact dates.
+
+- **Week:** `27-12 to 2-1` means 27 Dec → 2 Jan. The first row's year is `baseYear` (2025). The year goes up
+  when the start month rolls back (Dec → Jan). A row belongs to a month or year by its week's **Saturday**.
+- **Status:**
+  - `Approved` → approved.
+  - `Rejected`, or a red row (`RowColor = FF0000`) → rejected.
+  - `Sick` → approved, with category Sick.
+  - `Training` → approved, with category Training.
+  - Empty → **not marked**. This is not "pending": for example, the Eid-week allocations are never marked.
+- **Annual days** come only from the *Annual* column: the leading number of `N Day`, unless the cell says
+  "sick". Rejected rows count 0. This is the source of truth for the annual balance.
+- **Categories** come from keywords in the request text (English, Arabic and common typos). One row can have
+  several. Non-annual day counts are approximate (the leading number in the text, default 1) and shown with ≈.
+- **Names:** spaces, non-breaking spaces and case are normalized, then `name-aliases.json` is applied. Names
+  not in `fsrs.csv` are still real people and are tagged "Not in FSR list".
+
+### The FSR "Annual Used" counter
+
+The FSRs tab's manual counter **starts at the week of 28 Mar 2026**. Counting the sheet from that week, 45 of
+54 people match exactly; the other 9 are listed on the Data check page. If the counter is reset, change the
+date in `src/lib/config.ts` (or set `VITE_FSR_COUNTER_START`).
+
+### Live Google Sheet
+
+1. Share the sheet as **"Anyone with the link can view"**.
+2. Set `VITE_SHEET_CSV_URL` (Cloudflare Pages → Settings → Environment variables), then redeploy:
+   `https://docs.google.com/spreadsheets/d/<ID>/gviz/tq?tqx=out:csv&sheet=Weekly%20Requests`
+3. The live CSV has no `Row` / `RowColor` columns. Row numbers then come from the position in the export, and
+   rejected rows must have "Rejected" written in Status.
+
+`fsrs.csv` and `name-aliases.json` stay bundled; update them in the repo when the list changes.
+
+## Tests
+
+`npm test` runs Vitest on the name normalization and aliases, week parsing with year rollover, the Annual
+column parser, the status mapping and the classifier (all with real strings from the sheet). It also runs an
+**integration test on the real CSV**, which checks among other things:
+
+- Anwar = 8 rows and 8 annual days.
+- 674 lines; statuses 492 approved + 21 Sick + 1 Training approved, 4 rejected, 156 empty.
+- FSR = computed for Abdullah Samy, Fady Adel, Khaled, Wagdy and Mariam.
 
 ## Deploy to Cloudflare Pages (free)
 
@@ -85,58 +116,5 @@ src/
 The app uses a `HashRouter` and relative asset paths, so it works on any static host. `public/_redirects`
 (`/* /index.html 200`) is included as a safety net for deep links.
 
-> Leave data will be visible to anyone with the URL. To limit access to company emails, put the site behind
+> The data will be visible to anyone with the URL. To limit access to company emails, put the site behind
 > **Cloudflare Access** (Zero Trust → Access → Applications), which is free for up to 50 users.
-
-## The data: the "Leave" Google Sheet
-
-Everything about reading data lives in **`src/lib/data-source.ts`**. No other file needs to change.
-
-The app reads three tabs. Only the listed columns are read; anything else, such as the roster's
-*Address* column, is ignored.
-
-| Tab | Columns used | Purpose |
-| --- | --- | --- |
-| **Weekly Requests** | Name · Request · Status · Annual · Week · Note | One row per request |
-| **FSRs** | FSR Names (and Department, if added later) | The roster. People with no requests still appear |
-| **Aliases** *(add this tab)* | Name in requests · Correct name | Fixes spelling variants ("Moahmed Ali" → "Mohamed Ali") |
-
-Header names and tab names are configurable in `COLUMN_MAPPING` / `SHEET_CONFIG`. Matching ignores case
-and extra spaces.
-
-**How rows are read**
-
-- **Status:** "Approved" means approved and "Rejected" means rejected. *Sick* and *Training* are recorded facts,
-  so they count as approved. A blank cell means **pending**. Cell colours are not used.
-- **Week:** a label like `27-12 to 2-1` (Saturday to Friday). The year isn't written, so it is inferred:
-  the last row is the latest year that isn't far in the future, and going up the sheet the year steps back
-  at each December/January boundary. A weekly request is counted in the period that contains its Saturday.
-- **Type:** the free-text *Request* is sorted into Annual, Sick, Day off, Shift change, Training / outside,
-  Holiday or Other (`classifyRequest()`). Shift changes don't count as "off".
-- **Days:** the number in the *Annual* column (e.g. `2 Day`). For sick requests, the number in the text is
-  used too (`Out of schedule 3 Day ( Sick )`). Otherwise the row counts 0 days.
-- **Names:** spaces and capitals are ignored when matching, then *Aliases* are applied, then the name is
-  matched to the roster. Names that aren't in FSRs are still shown, with a "Not in FSRs list" tag.
-
-### Where the data comes from (`VITE_DATA_SOURCE`)
-
-| Value | Reads | Use for |
-| --- | --- | --- |
-| `mock` (default) | invented demo data in the same format | development, demos |
-| `csv-files` | `./data/weekly-requests.csv`, `./data/fsrs.csv`, `./data/aliases.csv` next to `index.html` | a private preview from an export |
-| `google-sheet` | the live sheet | production |
-
-**Connecting the live sheet**
-
-1. Share the sheet as **"Anyone with the link can view"**. The app reads it with the public CSV export, so
-   no API key is needed now that status is a text column.
-2. In Cloudflare Pages → *Settings → Environment variables*, add:
-   - `VITE_DATA_SOURCE = google-sheet`
-   - `VITE_SHEET_ID = <the long id from the sheet URL>`
-3. Redeploy. Locally: `VITE_DATA_SOURCE=google-sheet VITE_SHEET_ID=... npm run dev`.
-
-> ⚠️ "Anyone with the link" means anyone who finds the link can read the sheet. If that's not acceptable,
-> keep the sheet private and add a small proxy (e.g. a Cloudflare Worker with a service account) later.
-> Only `loadTabs()` in `data-source.ts` would change.
-
-Real exports (`*.xlsx`, `*.csv`, `public/data/`) are git-ignored. Never commit employee data.

@@ -1,23 +1,24 @@
-import { CalendarCheck2, CheckCircle2, Clock, FileText, UserRoundX, XCircle } from 'lucide-react'
+import { CalendarCheck2, CheckCircle2, CircleDashed, FileText, UserRoundX, XCircle } from 'lucide-react'
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import { AnnualChart } from '@/components/annual-chart'
+import { CategoryBadges } from '@/components/category'
+import { CategoryBreakdown } from '@/components/category-breakdown'
 import { EmployeeAvatar } from '@/components/employee-avatar'
-import { DataCheck } from '@/components/data-check'
 import { EmptyState } from '@/components/empty-state'
-import { LeaveDaysChart } from '@/components/leave-days-chart'
-import { LeaveTypeLabel } from '@/components/leave-type'
 import { CardSkeleton, TilesSkeleton } from '@/components/loading'
 import { PageHeader } from '@/components/page-header'
+import { NotInFsrTag } from '@/components/roster-tag'
 import { StatTile } from '@/components/stat-tile'
 import { StatusBadge } from '@/components/status-badge'
-import { TypeBreakdown } from '@/components/type-breakdown'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useLeaveData } from '@/context/data-context'
 import { useFilters } from '@/context/filters-context'
 import { useI18n } from '@/i18n/i18n-context'
-import { OFF_TYPES } from '@/lib/constants'
-import { formatDays, formatRange, periodRange } from '@/lib/dates'
-import { chartBuckets, employeeRows, filterRequests, summarize } from '@/lib/stats'
+import { SHEET_CONFIG } from '@/lib/config'
+import { formatDays, formatWeek, fromKey } from '@/lib/dates'
+import { annualBuckets, employeeStats, filterRows, summarize } from '@/lib/stats'
+import { addDays } from 'date-fns'
 
 export function OverviewPage() {
   const { data, loading } = useLeaveData()
@@ -26,36 +27,30 @@ export function OverviewPage() {
   const o = t.overview
 
   const view = useMemo(() => {
-    const filters = { department: f.department, type: f.type, status: f.status }
-    const scoped = filterRequests(data.requests, f.range, filters)
-    const summary = summarize(scoped, f.range)
-    const buckets = f.chartRange ? chartBuckets(scoped, f.period, f.chartRange) : []
-
-    const employees = f.department ? data.employees.filter((e) => e.department === f.department) : data.employees
-    const top = employeeRows(employees, scoped, f.range)
-      .filter((r) => r.approvedDays > 0)
-      .sort((a, b) => b.approvedDays - a.approvedDays || a.name.localeCompare(b.name))
-      .slice(0, 5)
-
-    // "This week" is always the real current week (not the selected period), but it respects
-    // the department and type filters. Only types that mean the person is away count (not shift changes).
-    const noStatus = { ...filters, status: null }
-    const week = periodRange('week', new Date())!
-    const offThisWeek = filterRequests(data.requests, week, noStatus)
-      .filter((r) => r.status !== 'rejected' && OFF_TYPES.includes(r.type))
-      .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.employee.localeCompare(b.employee))
-    const peopleOffThisWeek = new Set(offThisWeek.filter((r) => r.status === 'approved').map((r) => r.employeeId)).size
-
-    return { summary, buckets, top, peopleOffThisWeek, offThisWeek }
-  }, [data, f.range, f.chartRange, f.period, f.department, f.type, f.status])
+    const filters = { category: f.category, status: f.status }
+    const scoped = filterRows(data.rows, f.range, filters)
+    const summary = summarize(scoped)
+    const buckets = annualBuckets(scoped, f.period, f.range, data.sheetWeeks)
+    const top = employeeStats(data.employees, scoped, data.rows, SHEET_CONFIG.fsrCounterStart)
+      .filter((e) => e.summary.annualDays > 0)
+      .sort((a, b) => b.summary.annualDays - a.summary.annualDays || a.name.localeCompare(b.name))
+      .slice(0, 6)
+    // "This week" = the current sheet week, whatever period is selected (category/status filters still apply).
+    const thisWeekRows = f.thisWeek
+      ? filterRows(data.rows, { start: f.thisWeek, end: f.thisWeek }, filters).sort(
+          (a, b) => a.employee.localeCompare(b.employee) || a.id - b.id,
+        )
+      : []
+    const onLeave = new Set(thisWeekRows.filter((r) => r.status !== 'rejected').map((r) => r.employeeId)).size
+    return { summary, buckets, top, thisWeekRows, onLeave }
+  }, [data, f.range, f.period, f.category, f.status, f.thisWeek])
 
   const s = view.summary
+  const weekLabel = f.thisWeek ? formatWeek(fromKey(f.thisWeek), addDays(fromKey(f.thisWeek), 6)) : '—'
 
   return (
     <div className="space-y-6">
       <PageHeader title={o.title} description={o.subtitle(f.label)} />
-      <DataCheck />
-
       {loading ? (
         <>
           <TilesSkeleton />
@@ -64,27 +59,12 @@ export function OverviewPage() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <StatTile label={o.totalRequests} value={s.total} icon={FileText} hint={t.common.inThisPeriod} />
-            <StatTile label={o.approvedDays} value={formatDays(s.approvedDays)} icon={CalendarCheck2} hint={t.common.workingDays} />
-            <StatTile
-              label={o.approved}
-              value={s.approved}
-              icon={CheckCircle2}
-              iconClassName="bg-status-approved-bg text-status-approved"
-            />
-            <StatTile
-              label={o.rejected}
-              value={s.rejected}
-              icon={XCircle}
-              iconClassName="bg-status-rejected-bg text-status-rejected"
-            />
-            <StatTile
-              label={o.pending}
-              value={s.pending}
-              icon={Clock}
-              iconClassName="bg-status-pending-bg text-status-pending"
-            />
-            <StatTile label={o.onLeaveToday} value={view.peopleOffThisWeek} icon={UserRoundX} hint={o.onLeaveTodayHint} />
+            <StatTile label={o.requests} value={s.rows} icon={FileText} hint={t.units.people(s.people)} />
+            <StatTile label={o.annualDays} value={formatDays(s.annualDays)} icon={CalendarCheck2} hint={t.common.annualColumn} />
+            <StatTile label={o.approved} value={s.approved} icon={CheckCircle2} iconClassName="bg-status-approved-bg text-status-approved" />
+            <StatTile label={o.rejected} value={s.rejected} icon={XCircle} iconClassName="bg-status-rejected-bg text-status-rejected" />
+            <StatTile label={o.notMarked} value={s.notMarked} icon={CircleDashed} iconClassName="bg-muted text-muted-foreground" hint={o.notMarkedHint} />
+            <StatTile label={o.onLeaveThisWeek} value={view.onLeave} icon={UserRoundX} hint={o.onLeaveThisWeekHint(weekLabel)} />
           </div>
 
           <Card>
@@ -93,24 +73,24 @@ export function OverviewPage() {
               <CardDescription>{o.chartSubtitle(f.label, o.chartBy[f.period])}</CardDescription>
             </CardHeader>
             <CardContent>
-              <LeaveDaysChart buckets={view.buckets} types={f.type ? [f.type] : undefined} />
+              <AnnualChart buckets={view.buckets} />
             </CardContent>
           </Card>
 
           <div className="grid gap-6 lg:grid-cols-3">
             <Card>
               <CardHeader>
-                <CardTitle>{o.byType}</CardTitle>
-                <CardDescription>{o.byTypeSubtitle}</CardDescription>
+                <CardTitle>{o.byCategory}</CardTitle>
+                <CardDescription>{o.byCategorySubtitle}</CardDescription>
               </CardHeader>
               <CardContent>
-                <TypeBreakdown summary={s} />
+                <CategoryBreakdown summary={s} />
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>{o.top5}</CardTitle>
+                <CardTitle>{o.topAnnual}</CardTitle>
                 <CardDescription>{f.label}</CardDescription>
               </CardHeader>
               <CardContent>
@@ -120,17 +100,14 @@ export function OverviewPage() {
                   <ol className="space-y-3">
                     {view.top.map((e, i) => (
                       <li key={e.id}>
-                        <Link
-                          to={{ pathname: `/employees/${e.id}`, search: f.search }}
-                          className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-1 hover:bg-muted"
-                        >
+                        <Link to={{ pathname: `/employees/${e.id}`, search: f.search }} className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-1 hover:bg-muted">
                           <span className="w-4 text-sm text-muted-foreground tabular-nums">{i + 1}</span>
                           <EmployeeAvatar name={e.name} />
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-medium">{e.name}</p>
-                            <p className="truncate text-xs text-muted-foreground">{e.department ?? (e.inRoster ? '' : t.common.notInRoster)}</p>
+                            {!e.inFsrList && <NotInFsrTag />}
                           </div>
-                          <span className="text-sm font-semibold tabular-nums">{t.units.daysShort(formatDays(e.approvedDays))}</span>
+                          <span className="text-sm font-semibold tabular-nums">{t.units.daysShort(formatDays(e.summary.annualDays))}</span>
                         </Link>
                       </li>
                     ))}
@@ -141,27 +118,22 @@ export function OverviewPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>{o.whosOff}</CardTitle>
-                <CardDescription>{o.whosOffSubtitle}</CardDescription>
+                <CardTitle>{o.thisWeek}</CardTitle>
+                <CardDescription>{o.thisWeekSubtitle(weekLabel)}</CardDescription>
               </CardHeader>
               <CardContent>
-                {view.offThisWeek.length === 0 ? (
-                  <EmptyState className="py-6" title={o.nobodyOff} />
+                {view.thisWeekRows.length === 0 ? (
+                  <EmptyState className="py-6" title={o.nothingThisWeek} />
                 ) : (
-                  <ul className="space-y-3">
-                    {view.offThisWeek.map((r) => (
+                  <ul className="max-h-[28rem] space-y-3 overflow-y-auto pe-1">
+                    {view.thisWeekRows.map((r) => (
                       <li key={r.id}>
-                        <Link
-                          to={{ pathname: `/employees/${r.employeeId}`, search: f.search }}
-                          className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-1 hover:bg-muted"
-                        >
+                        <Link to={{ pathname: `/employees/${r.employeeId}`, search: f.search }} className="-mx-2 flex items-start gap-3 rounded-lg px-2 py-1 hover:bg-muted">
                           <EmployeeAvatar name={r.employee} />
-                          <div className="min-w-0 flex-1">
+                          <div className="min-w-0 flex-1 space-y-1">
                             <p className="truncate text-sm font-medium">{r.employee}</p>
-                            <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-                              <LeaveTypeLabel type={r.type} />
-                              <span>{formatRange(r.startDate, r.endDate)}</span>
-                            </p>
+                            <p dir="auto" className="text-xs text-muted-foreground">{r.requestText}</p>
+                            <CategoryBadges categories={r.categories} />
                           </div>
                           <StatusBadge status={r.status} />
                         </Link>

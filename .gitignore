@@ -23,7 +23,5 @@ dist-ssr
 *.sln
 *.sw?
 
-# Real sheet exports must never be committed
-/public/data/
+# Raw (password-protected) workbook exports stay out of git. The CSVs in src/data are the app's data.
 *.xlsx
-*.csv

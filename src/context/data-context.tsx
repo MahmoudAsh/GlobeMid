@@ -2,20 +2,27 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { loadLeaveData } from '@/lib/data-source'
 import type { Employee, LeaveData } from '@/lib/types'
 
+const EMPTY: LeaveData = {
+  rows: [],
+  employees: [],
+  issues: { unparsedWeeks: [], nonSaturdayWeeks: [], emptyNameRows: [], unmatchedNames: [], unclassified: [] },
+  sheetWeeks: [],
+  rawStatusCounts: {},
+  rawRowCount: 0,
+}
+
 interface DataState {
   loading: boolean
   error: string | null
   data: LeaveData
   employeesById: Map<string, Employee>
-  /** False when the data has no department info (then the department filter/column are hidden). */
-  hasDepartments: boolean
   reload: () => void
 }
 
 const DataContext = createContext<DataState | null>(null)
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<LeaveData>({ employees: [], requests: [] })
+  const [data, setData] = useState<LeaveData>(EMPTY)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [nonce, setNonce] = useState(0)
@@ -35,14 +42,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const reload = useCallback(() => setNonce((n) => n + 1), [])
   const value = useMemo<DataState>(
-    () => ({
-      loading,
-      error,
-      data,
-      employeesById: new Map(data.employees.map((e) => [e.id, e])),
-      hasDepartments: data.employees.some((e) => !!e.department),
-      reload,
-    }),
+    () => ({ loading, error, data, employeesById: new Map(data.employees.map((e) => [e.id, e])), reload }),
     [loading, error, data, reload],
   )
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>

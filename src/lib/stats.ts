@@ -1,191 +1,145 @@
 /**
- * Pure aggregation helpers. Every page uses these same functions so the
- * numbers on Overview, Employees and the Employee report always agree.
+ * Aggregations shared by every page, so Overview, Employees and the Employee report always agree.
  */
-import {
-  eachMonthOfInterval,
-  eachWeekOfInterval,
-  endOfMonth,
-  endOfWeek,
-  startOfMonth,
-} from 'date-fns'
-import { LEAVE_TYPES, OFF_TYPES, WEEK_STARTS_ON } from './constants'
-import { dayAllocation, fmt, daysInRange, fromKey, overlaps, toKey, type DayRange, type Period } from './dates'
-import type { Employee, LeaveRequest, LeaveStatus, LeaveType } from './types'
+import { eachMonthOfInterval, endOfMonth } from 'date-fns'
+import { CATEGORIES } from './categories'
+import { fmt, formatWeek, fromKey, toKey } from './dates'
+import { inRange, type Period, type WeekRange } from './periods'
+import type { Category, Employee, LeaveRow, RowStatus } from './types'
 
-export interface Filters {
-  department: string | null
-  type: LeaveType | null
-  status: LeaveStatus | null
+export interface RowFilters {
+  category: Category | null
+  status: RowStatus | null
 }
 
-/** Requests in the period that match the department / type / status filters. */
-export function filterRequests(
-  requests: LeaveRequest[],
-  range: DayRange | null,
-  filters: Filters,
-  opts: { ignoreDepartment?: boolean } = {},
-) {
-  return requests.filter(
-    (r) =>
-      overlaps(r, range) &&
-      (opts.ignoreDepartment || !filters.department || r.department === filters.department) &&
-      (!filters.type || r.type === filters.type) &&
-      (!filters.status || r.status === filters.status),
+export function filterRows(rows: LeaveRow[], range: WeekRange | null, f: RowFilters) {
+  return rows.filter(
+    (r) => inRange(r.weekKey, range) && (!f.category || r.categories.includes(f.category)) && (!f.status || r.status === f.status),
   )
 }
 
 export interface Summary {
-  total: number
+  rows: number
   approved: number
   rejected: number
-  pending: number
-  /** Approved leave days falling inside the period. */
-  approvedDays: number
-  byType: Record<LeaveType, { count: number; approvedDays: number }>
+  notMarked: number
+  /** Annual days (Annual column) — exact. */
+  annualDays: number
+  people: number
+  /** Per category: rows that include it, and days (annual: exact; others: approx.). */
+  byCategory: Record<Category, { count: number; days: number }>
 }
 
-export function summarize(requests: LeaveRequest[], range: DayRange | null): Summary {
+export function summarize(rows: LeaveRow[]): Summary {
   const s: Summary = {
-    total: 0,
+    rows: rows.length,
     approved: 0,
     rejected: 0,
-    pending: 0,
-    approvedDays: 0,
-    byType: Object.fromEntries(LEAVE_TYPES.map((t) => [t, { count: 0, approvedDays: 0 }])) as Summary['byType'],
+    notMarked: 0,
+    annualDays: 0,
+    people: new Set(rows.map((r) => r.employeeId)).size,
+    byCategory: Object.fromEntries(CATEGORIES.map((c) => [c, { count: 0, days: 0 }])) as Summary['byCategory'],
   }
-  for (const r of requests) {
-    s.total++
-    s[r.status]++
-    s.byType[r.type].count++
-    if (r.status === 'approved') {
-      const d = daysInRange(r, range)
-      s.approvedDays += d
-      s.byType[r.type].approvedDays += d
+  for (const r of rows) {
+    if (r.status === 'approved') s.approved++
+    else if (r.status === 'rejected') s.rejected++
+    else s.notMarked++
+    s.annualDays += r.annualDays
+    for (const c of r.categories) {
+      s.byCategory[c].count++
+      s.byCategory[c].days += c === 'annual' ? r.annualDays : r.otherDays
     }
   }
   return s
 }
 
-/** Share of decided requests (approved + rejected) that were approved; null if none decided. */
-export function approvalRate(s: Pick<Summary, 'approved' | 'rejected'>) {
-  const decided = s.approved + s.rejected
-  return decided === 0 ? null : s.approved / decided
+export interface EmployeeStats extends Employee {
+  summary: Summary
+  /** Approx. days. */
+  sickDays: number
+  holidayDays: number
+  /** Row counts. */
+  birthdays: number
+  offChanges: number
+  cancelledOffs: number
+  /** Annual days computed from the FSR counter start date (all filters ignored) — compare with fsrAnnualUsed. */
+  computedAnnualUsed: number
+  fsrMismatch: boolean
+  lastWeek: string | null
 }
 
-export interface EmployeeRow extends Employee, Summary {
-  lastLeave: string | null
-}
-
-export function employeeRows(employees: Employee[], requests: LeaveRequest[], range: DayRange | null): EmployeeRow[] {
-  const grouped = new Map<string, LeaveRequest[]>()
-  for (const r of requests) grouped.set(r.employeeId, [...(grouped.get(r.employeeId) ?? []), r])
+export function employeeStats(
+  employees: Employee[],
+  scopedRows: LeaveRow[],
+  allRows: LeaveRow[],
+  fsrCounterStart: string,
+): EmployeeStats[] {
+  const group = (rows: LeaveRow[]) => {
+    const m = new Map<string, LeaveRow[]>()
+    for (const r of rows) m.set(r.employeeId, [...(m.get(r.employeeId) ?? []), r])
+    return m
+  }
+  const scoped = group(scopedRows)
+  const all = group(allRows)
   return employees.map((e) => {
-    const list = grouped.get(e.id) ?? []
-    const approved = list.filter((r) => r.status === 'approved' && OFF_TYPES.includes(r.type))
-    const lastLeave = approved.reduce<string | null>((m, r) => (!m || r.startDate > m ? r.startDate : m), null)
-    return { ...e, ...summarize(list, range), lastLeave }
+    const rows = scoped.get(e.id) ?? []
+    const summary = summarize(rows)
+    const computedAnnualUsed = (all.get(e.id) ?? []).filter((r) => r.weekKey >= fsrCounterStart).reduce((n, r) => n + r.annualDays, 0)
+    return {
+      ...e,
+      summary,
+      sickDays: summary.byCategory.sick.days,
+      holidayDays: summary.byCategory.publicHoliday.days,
+      birthdays: summary.byCategory.birthday.count,
+      offChanges: summary.byCategory.dayOff.count,
+      cancelledOffs: summary.byCategory.cancelledOff.count,
+      computedAnnualUsed,
+      fsrMismatch: e.fsrAnnualUsed != null && e.fsrAnnualUsed !== computedAnnualUsed,
+      lastWeek: rows.reduce<string | null>((m, r) => (!m || r.weekKey > m ? r.weekKey : m), null),
+    }
   })
 }
 
-export interface ChartBucket {
+export interface Bucket {
   key: string
   label: string
-  /** Full label for tooltips. */
   title: string
   start: string
   end: string
-  values: Record<LeaveType, number>
+  annualDays: number
+  rows: number
 }
 
-/**
- * Approved leave days per bucket, stacked by type:
- * by day for Week, by week for Month, by month for Year / All time.
- */
-export function chartBuckets(requests: LeaveRequest[], period: Period, range: DayRange): ChartBucket[] {
-  const s = fromKey(range.start)
-  const e = fromKey(range.end)
-  const empty = () => Object.fromEntries(LEAVE_TYPES.map((t) => [t, 0])) as Record<LeaveType, number>
-  let buckets: ChartBucket[]
-
-  // Weekly sheet data has no day detail: show the week as one bar, and a month as its weeks.
-  const weekly = requests.length > 0 && requests.every((r) => r.precision === 'week')
-
-  if (period === 'week' && weekly) {
-    buckets = [
-      {
-        key: range.start,
-        label: `${fmt(s, 'd MMM')} – ${fmt(e, 'd MMM')}`,
-        title: `${fmt(s, 'd MMM')} – ${fmt(e, 'd MMM yyyy')}`,
-        start: range.start,
-        end: range.end,
-        values: empty(),
-      },
-    ]
-  } else if (period === 'month' && weekly) {
-    // Weeks that START in this month (that's where weekly requests are counted).
-    buckets = eachWeekOfInterval({ start: s, end: e }, { weekStartsOn: WEEK_STARTS_ON })
-      .filter((w) => w >= s)
-      .map((w) => {
-        const we = endOfWeek(w, { weekStartsOn: WEEK_STARTS_ON })
-        return {
-          key: toKey(w),
-          label: `${fmt(w, 'd MMM')}`,
-          title: `${fmt(w, 'd MMM')} – ${fmt(we, 'd MMM yyyy')}`,
-          start: toKey(w),
-          end: toKey(we),
-          values: empty(),
-        }
-      })
-  } else if (period === 'week') {
-    buckets = []
-    for (let d = s; d <= e; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
-      const k = toKey(d)
-      buckets.push({ key: k, label: fmt(d, 'EEE d'), title: fmt(d, 'EEEE d MMM'), start: k, end: k, values: empty() })
-    }
-  } else if (period === 'month') {
-    buckets = eachWeekOfInterval({ start: s, end: e }, { weekStartsOn: WEEK_STARTS_ON }).map((w) => {
-      const ws = w < s ? s : w
-      const we0 = endOfWeek(w, { weekStartsOn: WEEK_STARTS_ON })
-      const we = we0 > e ? e : we0
-      return {
-        key: toKey(ws),
-        label: `${fmt(ws, 'd')}–${fmt(we, 'd MMM')}`,
-        title: `${fmt(ws, 'd MMM')} – ${fmt(we, 'd MMM yyyy')}`,
-        start: toKey(ws),
-        end: toKey(we),
-        values: empty(),
-      }
+/** Annual days per month (year / all), per sheet week (month), or for the one week (week). */
+export function annualBuckets(rows: LeaveRow[], period: Period, range: WeekRange | null, sheetWeeks: string[]): Bucket[] {
+  let buckets: Bucket[]
+  if (period === 'week' || period === 'month') {
+    const weeks = sheetWeeks.filter((w) => inRange(w, range))
+    buckets = weeks.map((w) => {
+      const s = fromKey(w)
+      const e = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 6)
+      return { key: w, label: fmt(s, 'd MMM'), title: formatWeek(s, e), start: w, end: w, annualDays: 0, rows: 0 }
     })
   } else {
-    const multiYear = s.getFullYear() !== e.getFullYear()
-    buckets = eachMonthOfInterval({ start: s, end: e }).map((m) => {
-      const ms = m < s ? s : startOfMonth(m)
-      const me = endOfMonth(m) > e ? e : endOfMonth(m)
-      return {
-        key: toKey(ms),
-        label: fmt(m, multiYear ? 'MMM yy' : 'MMM'),
-        title: fmt(m, 'MMMM yyyy'),
-        start: toKey(ms),
-        end: toKey(me),
-        values: empty(),
-      }
-    })
+    const start = range?.start ?? sheetWeeks[0]
+    const end = range?.end ?? sheetWeeks.at(-1)
+    if (!start || !end) return []
+    const multiYear = start.slice(0, 4) !== end.slice(0, 4)
+    buckets = eachMonthOfInterval({ start: fromKey(start), end: fromKey(end) }).map((m) => ({
+      key: toKey(m),
+      label: fmt(m, multiYear ? 'MMM yy' : 'MMM'),
+      title: fmt(m, 'MMMM yyyy'),
+      start: toKey(m),
+      end: toKey(endOfMonth(m)),
+      annualDays: 0,
+      rows: 0,
+    }))
   }
-
-  for (const r of requests) {
-    if (r.status !== 'approved') continue
-    for (const [d, share] of dayAllocation(r)) {
-      if (d < range.start || d > range.end) continue
-      // buckets are sorted and contiguous — find the one containing d
-      const b = buckets.find((x) => d >= x.start && d <= x.end)
-      if (b) b.values[r.type] += share
-    }
+  for (const r of rows) {
+    const b = buckets.find((x) => r.weekKey >= x.start && r.weekKey <= x.end)
+    if (!b) continue
+    b.annualDays += r.annualDays
+    b.rows++
   }
   return buckets
-}
-
-/** Approved requests covering a given day. */
-export function onLeaveOn(requests: LeaveRequest[], day: string) {
-  return requests.filter((r) => r.status === 'approved' && r.startDate <= day && r.endDate >= day)
 }

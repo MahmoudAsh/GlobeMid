@@ -1,7 +1,7 @@
 import { Fragment } from 'react'
 import { HashRouter, Route, Routes } from 'react-router-dom'
 import { AppShell } from '@/components/layout/app-shell'
-import { LeaveTypeColorVars } from '@/components/leave-type'
+import { CategoryColorVars } from '@/components/category'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { DataProvider, useLeaveData } from '@/context/data-context'
 import { FilterProvider } from '@/context/filters-context'
@@ -12,6 +12,7 @@ import { EmployeeReportPage } from '@/pages/employee-report'
 import { EmployeesPage } from '@/pages/employees'
 import { OverviewPage } from '@/pages/overview'
 import { RequestsPage } from '@/pages/requests'
+import { DataCheckPage } from '@/pages/data-check'
 import { AlertTriangle, MapPinOff } from 'lucide-react'
 import { I18nProvider, useI18n } from '@/i18n/i18n-context'
 
@@ -35,6 +36,7 @@ function Routed() {
       <Route path="/employees" element={<EmployeesPage />} />
       <Route path="/employees/:id" element={<EmployeeReportPage />} />
       <Route path="/requests" element={<RequestsPage />} />
+      <Route path="/data-check" element={<DataCheckPage />} />
       <Route
         path="*"
         element={
@@ -62,7 +64,7 @@ export default function App() {
       <I18nProvider>
         <TooltipProvider delayDuration={200}>
           <DataProvider>
-            <LeaveTypeColorVars />
+            <CategoryColorVars />
             <LanguageScope>
               <FilterProvider>
                 <AppShell>

@@ -1,4 +1,4 @@
-import { CalendarHeart, LayoutDashboard, ListChecks, Menu, Moon, Sun, Users, type LucideIcon } from 'lucide-react'
+import { CalendarHeart, LayoutDashboard, ListChecks, Menu, Moon, ShieldCheck, Sun, Users, type LucideIcon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,7 @@ function NavItems({ onNavigate, vertical }: { onNavigate?: () => void; vertical?
     { to: '/', label: t.nav.overview, icon: LayoutDashboard, end: true },
     { to: '/employees', label: t.nav.employees, icon: Users, end: false },
     { to: '/requests', label: t.nav.requests, icon: ListChecks, end: false },
+    { to: '/data-check', label: t.nav.dataCheck, icon: ShieldCheck, end: false },
   ]
   return (
     <nav className={cn('flex gap-1', vertical && 'flex-col')}>
@@ -27,7 +28,7 @@ function NavItems({ onNavigate, vertical }: { onNavigate?: () => void; vertical?
           onClick={onNavigate}
           className={({ isActive }) =>
             cn(
-              'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+              'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors',
               isActive ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
             )
           }
@@ -52,7 +53,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-4 sm:gap-3 sm:px-6">
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="md:hidden" aria-label={t.nav.openMenu}>
+              <Button variant="ghost" size="icon" className="lg:hidden" aria-label={t.nav.openMenu}>
                 <Menu />
               </Button>
             </SheetTrigger>
@@ -73,7 +74,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="hidden min-[420px]:inline">{t.appName}</span>
           </NavLink>
 
-          <div className="ms-4 hidden md:block">
+          <div className="ms-4 hidden lg:block">
             <NavItems />
           </div>
 

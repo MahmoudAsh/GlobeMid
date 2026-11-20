@@ -1,55 +1,86 @@
 /**
- * Core domain types. Everything in the UI is built on these shapes,
- * whatever the data source is (mock data, local CSV files, or the Google Sheet).
+ * Normalized model of the "Weekly Requests" sheet.
+ * One LeaveRow = one line the manager wrote for ONE employee in ONE week (there are no exact dates).
  */
 
-export type LeaveStatus = 'approved' | 'rejected' | 'pending'
+export type RowStatus = 'approved' | 'rejected' | 'not_marked'
 
-/**
- * Request categories. The sheet's "Request" column is free text, so each row is
- * classified by `classifyRequest()` in `data-source.ts`.
- */
-export type LeaveType = 'Annual' | 'Sick' | 'DayOff' | 'Shift' | 'Training' | 'Holiday' | 'Other'
+export type Category =
+  | 'annual'
+  | 'sick'
+  | 'publicHoliday'
+  | 'birthday'
+  | 'dayOff'
+  | 'cancelledOff'
+  | 'shift'
+  | 'training'
+  | 'emergency'
+  | 'bereavement'
+  | 'wedding'
+  | 'outOfSchedule'
+  | 'noShow'
+  | 'leaving'
+  | 'other'
 
-export interface Employee {
-  /** URL-safe id derived from the (corrected) name. */
-  id: string
-  name: string
-  department?: string
-  /** False when the person appears in requests but not in the roster (FSRs tab). */
-  inRoster: boolean
+export interface LeaveRow {
+  /** Original sheet row number. */
+  id: number
+  /** Name exactly as typed (whitespace-normalized). */
+  rawName: string
+  /** Canonical name after aliases / FSR spelling. */
+  employee: string
+  employeeId: string
+  inFsrList: boolean
+  weekStart: Date
+  weekEnd: Date
+  /** `yyyy-MM-dd` of weekStart — used for all period filtering. */
+  weekKey: string
+  /** The sheet's own label, e.g. "27-12 to 2-1". */
+  weekLabel: string
+  requestText: string
+  categories: Category[]
+  primaryCategory: Category
+  status: RowStatus
+  /** Annual days deducted (Annual column). 0 for rejected rows. The source of truth for annual balance. */
+  annualDays: number
+  /** Approximate days for the non-annual categories (sick, holiday, …). 0 for rejected rows. */
+  otherDays: number
+  /** The raw "Annual" cell, for display. */
+  annualCell: string
+  note: string
 }
 
-export interface LeaveRequest {
+export interface Employee {
   id: string
-  /** Employee name after alias correction. */
-  employee: string
-  /** Name exactly as typed in the sheet (shown when it differs). */
-  employeeRaw?: string
-  employeeId: string
-  department?: string
-  type: LeaveType
-  /** ISO date, `yyyy-MM-dd`, inclusive. For weekly data: the week's Saturday. */
-  startDate: string
-  /** ISO date, `yyyy-MM-dd`, inclusive. For weekly data: the week's Friday. */
-  endDate: string
-  /**
-   * 'week' when the sheet only says which week (not which days).
-   * Such a request belongs to the period containing its week's first day,
-   * and its days are counted on that day.
-   */
-  precision?: 'day' | 'week'
-  /** Leave days (Annual column, or the number written in a sick request). 0 when none. */
-  days: number
-  /** The request text (+ note). */
-  reason: string
-  status: LeaveStatus
-  submittedAt?: string
+  name: string
+  inFsrList: boolean
+  /** The sheet's manually-kept "Annual Used" counter (FSRs tab). null when not in the list or not a number. */
+  fsrAnnualUsed: number | null
+  /** Raw spellings merged into this person, with row counts. */
+  variants: { raw: string; count: number }[]
+}
+
+export interface DataIssues {
+  /** Rows with a name but a Week that couldn't be read. */
+  unparsedWeeks: { row: number; name: string; week: string }[]
+  /** Parsed week starts that aren't Saturdays (sheet weeks run Sat → Fri). */
+  nonSaturdayWeeks: { row: number; weekLabel: string; start: string }[]
+  /** Rows skipped because the Name cell is empty (e.g. placeholder weeks). */
+  emptyNameRows: { row: number; week: string }[]
+  /** Names that are neither in the FSR list nor in name-aliases.json. */
+  unmatchedNames: { name: string; count: number; rows: number[] }[]
+  /** Request texts the classifier couldn't put in any category. */
+  unclassified: { text: string; count: number; rows: number[] }[]
 }
 
 export interface LeaveData {
+  rows: LeaveRow[]
   employees: Employee[]
-  requests: LeaveRequest[]
-  /** Sheet rows that couldn't be read (e.g. no week), so they can be fixed in the sheet. */
-  skippedRows?: { row: number; name: string; reason: 'noWeek' | 'noName' }[]
+  issues: DataIssues
+  /** Every distinct sheet week (weekStart keys), ascending — week mode steps through these. */
+  sheetWeeks: string[]
+  /** Raw status counts as written in the sheet (for verifying with the manager). */
+  rawStatusCounts: Record<string, number>
+  /** Total data lines in the file (incl. skipped ones). */
+  rawRowCount: number
 }
