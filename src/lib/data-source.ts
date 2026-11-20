@@ -123,22 +123,25 @@ async function fetchCsv(url: string, optional = false): Promise<string[][]> {
 type Row<K extends string> = Partial<Record<K, string>>
 
 /** Read a tab into objects using a header → field mapping. */
-function readTab<M extends Record<string, string>>(rows: string[][], mapping: M): Row<M[keyof M]>[] {
+function readTab<M extends Record<string, string>>(
+  rows: string[][],
+  mapping: M,
+): (Row<M[keyof M]> & { __row: number })[] {
   const [header = [], ...body] = rows
   const norm = (h: string) => h.replace(/\s+/g, ' ').trim().toLowerCase()
   const lookup = new Map(Object.entries(mapping).map(([k, v]) => [norm(k), v]))
   const fields = header.map((h) => lookup.get(norm(h ?? '')))
-  return body
-    .map((cells) => {
-      const row: Row<M[keyof M]> = {}
-      cells.forEach((value, i) => {
-        const f = fields[i] as M[keyof M] | undefined
-        const v = cleanText(value)
-        if (f && v && !row[f]) row[f] = v
-      })
-      return row
+  const out: (Row<M[keyof M]> & { __row: number })[] = []
+  body.forEach((cells, rowIndex) => {
+    const row: Row<M[keyof M]> = {}
+    cells.forEach((value, col) => {
+      const f = fields[col] as M[keyof M] | undefined
+      const v = cleanText(value)
+      if (f && v && !row[f]) row[f] = v
     })
-    .filter((r) => Object.keys(r).length > 0)
+    if (Object.keys(row).length) out.push({ ...row, __row: rowIndex + 2 }) // sheet row number (header is row 1)
+  })
+  return out
 }
 
 /** Collapse spaces / non-breaking spaces / line breaks. */
@@ -175,11 +178,12 @@ export function sheetToLeaveData(tabs: SheetTabs, today = new Date()): LeaveData
   const weeks = inferWeekDates(rows.map((r) => r.week ?? ''), today)
 
   const parsed: { key: string; raw: string; req: Omit<LeaveRequest, 'employee' | 'employeeId'> }[] = []
-  let skipped = 0
+  const skippedRows: NonNullable<LeaveData['skippedRows']> = []
   rows.forEach((r, i) => {
     const week = weeks[i]
     if (!r.name || !week) {
-      if (r.name || r.request) skipped++
+      if (r.name || r.request)
+        skippedRows.push({ row: r.__row, name: cleanText(r.name) || '—', reason: r.name ? 'noWeek' : 'noName' })
       return
     }
     const { type, days } = classifyRequest(r.request ?? '', r.annual ?? '', r.status ?? '')
@@ -187,7 +191,7 @@ export function sheetToLeaveData(tabs: SheetTabs, today = new Date()): LeaveData
       key: resolveName(r.name),
       raw: cleanText(r.name),
       req: {
-        id: `ROW-${i + 2}`, // sheet row number, handy when cross-checking
+        id: `ROW-${r.__row}`, // sheet row number, handy when cross-checking
         department: r.department,
         type,
         startDate: week.start,
@@ -199,7 +203,6 @@ export function sheetToLeaveData(tabs: SheetTabs, today = new Date()): LeaveData
       },
     })
   })
-  if (skipped) console.warn(`[data-source] skipped ${skipped} row(s) without a readable name or week`)
 
   // --- employees: everyone in the roster + anyone who appears only in requests ---
   const employees = new Map(rosterByKey)
@@ -223,6 +226,7 @@ export function sheetToLeaveData(tabs: SheetTabs, today = new Date()): LeaveData
   return {
     employees: [...employees.values()].sort((a, b) => a.name.localeCompare(b.name)),
     requests,
+    skippedRows,
   }
 }
 
@@ -273,13 +277,13 @@ export function classifyRequest(request: string, annual: string, status: string)
   let days = num(annual)
 
   let type: LeaveType
-  if (/sick|مرض/.test(all)) {
+  if (/sick|مرض|تعبان/.test(all)) {
     type = 'Sick'
     if (!days) days = num(request)
-  } else if (/birthday|عيد\s*ميلاد/.test(all)) type = 'Annual'
+  } else if (/birthday|brithday|bithday|عيد\s*ميلاد/.test(all)) type = 'Annual'
   else if (/holiday|official|\beid\b|عيد|رسمي|رسميه|شم\s*نسيم/.test(all)) type = 'Holiday'
-  else if (days > 0 || /annual|سنوي|اعتيادي/.test(all)) type = 'Annual'
-  else if (/training|outside|ouside|meeting|تدريب/.test(all)) type = 'Training'
+  else if (days > 0 || /annual|anuual|anual|annaul|انيوال|سنوي|اعتيادي/.test(all)) type = 'Annual'
+  else if (/training|out\s*side|ouside|meeting|تدريب/.test(all)) type = 'Training'
   else if (/shift|وردي/.test(all)) type = 'Shift'
   else if (/cancel/.test(all)) type = 'Other'
   else if (/\boff\b|راحة|راحه/.test(all)) type = 'DayOff'

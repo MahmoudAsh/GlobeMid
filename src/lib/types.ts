@@ -50,4 +50,6 @@ export interface LeaveRequest {
 export interface LeaveData {
   employees: Employee[]
   requests: LeaveRequest[]
+  /** Sheet rows that couldn't be read (e.g. no week), so they can be fixed in the sheet. */
+  skippedRows?: { row: number; name: string; reason: 'noWeek' | 'noName' }[]
 }

@@ -2,6 +2,7 @@ import { CalendarCheck2, CheckCircle2, Clock, FileText, UserRoundX, XCircle } fr
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { EmployeeAvatar } from '@/components/employee-avatar'
+import { DataCheck } from '@/components/data-check'
 import { EmptyState } from '@/components/empty-state'
 import { LeaveDaysChart } from '@/components/leave-days-chart'
 import { LeaveTypeLabel } from '@/components/leave-type'
@@ -53,6 +54,7 @@ export function OverviewPage() {
   return (
     <div className="space-y-6">
       <PageHeader title={o.title} description={o.subtitle(f.label)} />
+      <DataCheck />
 
       {loading ? (
         <>

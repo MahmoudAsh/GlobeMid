@@ -145,6 +145,12 @@ export const en = {
     partlyInPeriod: 'This request is only partly inside the selected period',
   },
 
+  dataCheck: {
+    title: (n: number) => `${plural(n, 'row', 'rows')} in the sheet couldn’t be read`,
+    row: (row: number, name: string, reason: 'noWeek' | 'noName') =>
+      `Row ${row} (${name}): ${reason === 'noWeek' ? 'the Week cell is empty or not like “14-11 to 20-11”' : 'the Name cell is empty'}`,
+  },
+
   errors: {
     loadTitle: 'Couldn’t load leave data',
     retry: 'Try again',

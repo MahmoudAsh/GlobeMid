@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { DataCheck } from '@/components/data-check'
 import { EmptyState } from '@/components/empty-state'
 import { TableSkeleton } from '@/components/loading'
 import { PageHeader } from '@/components/page-header'
@@ -41,6 +42,7 @@ export function RequestsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title={rq.title} description={rq.subtitle(list.length, f.label)} />
+      <DataCheck />
       {loading ? (
         <TableSkeleton rows={10} />
       ) : (
