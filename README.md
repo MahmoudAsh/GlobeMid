@@ -31,6 +31,17 @@ The **filter bar** (Week / Month / Year / All time, prev / next / Today, departm
 every page. It lives in React context and in the URL query (e.g. `#/employees?p=year&d=2025-06-01&dept=Finance+%26+HR`),
 so any view can be bookmarked or shared.
 
+### Languages (English / العربية)
+
+The navbar switch toggles **English** and **Arabic**. Arabic switches the whole layout to right-to-left
+(`dir="rtl"`), mirrors the charts and arrows, formats dates in Arabic (e.g. `20 نوفمبر 2026`) and uses
+IBM Plex Sans Arabic. The choice is remembered per browser.
+
+- Strings live in `src/i18n/en.ts` (source) and `src/i18n/ar.ts`. TypeScript fails the build if a key is
+  missing in Arabic.
+- Data from the sheet (names, departments, reasons) is shown exactly as written.
+- Numbers use Western digits (0–9) in both languages.
+
 ### How the numbers are counted
 
 - A request **belongs to a period** if its date range overlaps the period.
@@ -54,6 +65,7 @@ src/
     constants.ts     leave types + fixed colours, statuses, weekend, week start
     dates.ts         periods, working days, overlap / in-period day maths
     stats.ts         filtering and aggregation shared by all pages
+  i18n/              en / ar strings + language context (RTL)
   context/           data loading + global filter state (URL-synced)
   components/        layout, filter bar, chart, badges, tiles, tables
   pages/             overview, employees, employee-report, requests

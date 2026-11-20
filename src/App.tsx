@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { HashRouter, Route, Routes } from 'react-router-dom'
 import { AppShell } from '@/components/layout/app-shell'
 import { LeaveTypeColorVars } from '@/components/leave-type'
@@ -12,15 +13,17 @@ import { EmployeesPage } from '@/pages/employees'
 import { OverviewPage } from '@/pages/overview'
 import { RequestsPage } from '@/pages/requests'
 import { AlertTriangle, MapPinOff } from 'lucide-react'
+import { I18nProvider, useI18n } from '@/i18n/i18n-context'
 
 function Routed() {
   const { error, reload } = useLeaveData()
+  const { t } = useI18n()
   if (error) {
     return (
       <Card>
-        <EmptyState icon={AlertTriangle} title="Couldn’t load leave data" description={error}>
+        <EmptyState icon={AlertTriangle} title={t.errors.loadTitle} description={error}>
           <Button variant="outline" onClick={reload}>
-            Try again
+            {t.errors.retry}
           </Button>
         </EmptyState>
       </Card>
@@ -36,7 +39,7 @@ function Routed() {
         path="*"
         element={
           <Card>
-            <EmptyState icon={MapPinOff} title="Page not found" />
+            <EmptyState icon={MapPinOff} title={t.errors.pageNotFound} />
           </Card>
         }
       />
@@ -44,19 +47,32 @@ function Routed() {
   )
 }
 
+/**
+ * Re-mounts the UI when the language changes so every memoised label (dates, chart axes)
+ * is rebuilt in the new language. Data stays loaded; URL filters are kept.
+ */
+function LanguageScope({ children }: { children: React.ReactNode }) {
+  const { lang } = useI18n()
+  return <Fragment key={lang}>{children}</Fragment>
+}
+
 export default function App() {
   return (
     <HashRouter>
-      <TooltipProvider delayDuration={200}>
-        <DataProvider>
-          <FilterProvider>
+      <I18nProvider>
+        <TooltipProvider delayDuration={200}>
+          <DataProvider>
             <LeaveTypeColorVars />
-            <AppShell>
-              <Routed />
-            </AppShell>
-          </FilterProvider>
-        </DataProvider>
-      </TooltipProvider>
+            <LanguageScope>
+              <FilterProvider>
+                <AppShell>
+                  <Routed />
+                </AppShell>
+              </FilterProvider>
+            </LanguageScope>
+          </DataProvider>
+        </TooltipProvider>
+      </I18nProvider>
     </HashRouter>
   )
 }

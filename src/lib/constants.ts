@@ -17,12 +17,6 @@ export const LEAVE_TYPE_COLORS: Record<LeaveType, { light: string; dark: string 
 
 export const STATUSES: LeaveStatus[] = ['approved', 'rejected', 'pending']
 
-export const STATUS_LABELS: Record<LeaveStatus, string> = {
-  approved: 'Approved',
-  rejected: 'Rejected',
-  pending: 'Pending',
-}
-
 /** Egypt weekend: Friday (5) and Saturday (6). */
 export const WEEKEND_DAYS = [5, 6]
 

@@ -1,6 +1,7 @@
 import { LEAVE_TYPE_COLORS } from '@/lib/constants'
 import type { LeaveType } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { useI18n } from '@/i18n/i18n-context'
 
 /** Swatch with the leave type's fixed colour (CSS vars set in <LeaveTypeColorVars/>). */
 export function TypeSwatch({ type, className }: { type: LeaveType; className?: string }) {
@@ -14,10 +15,11 @@ export function TypeSwatch({ type, className }: { type: LeaveType; className?: s
 }
 
 export function LeaveTypeLabel({ type, className }: { type: LeaveType; className?: string }) {
+  const { t } = useI18n()
   return (
     <span className={cn('inline-flex items-center gap-1.5 whitespace-nowrap', className)}>
       <TypeSwatch type={type} />
-      {type}
+      {t.leaveType[type]}
     </span>
   )
 }

@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useLeaveData } from '@/context/data-context'
 import { useFilters } from '@/context/filters-context'
+import { useI18n } from '@/i18n/i18n-context'
 import { filterRequests } from '@/lib/stats'
 
 const PAGE_SIZE = 15
@@ -17,6 +18,8 @@ export function RequestsPage() {
   const { data, loading } = useLeaveData()
   const f = useFilters()
   const [query, setQuery] = useState('')
+  const { t } = useI18n()
+  const rq = t.requests
   const [page, setPage] = useState(0)
 
   const list = useMemo(() => {
@@ -37,36 +40,36 @@ export function RequestsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Requests" description={`${list.length} requests · ${f.label} · newest first`} />
+      <PageHeader title={rq.title} description={rq.subtitle(list.length, f.label)} />
       {loading ? (
         <TableSkeleton rows={10} />
       ) : (
         <Card>
           <CardContent className="space-y-4">
             <div className="relative max-w-sm">
-              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute top-1/2 start-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={query}
                 onChange={(e) => {
                   setQuery(e.target.value)
                   setPage(0)
                 }}
-                placeholder="Search by name or reason"
-                className="pl-8"
-                aria-label="Search requests"
+                placeholder={t.common.searchNameOrReason}
+                className="ps-8"
+                aria-label={rq.searchLabel}
               />
             </div>
 
             {rows.length === 0 ? (
               <EmptyState
-                description={query ? 'No requests match your search.' : 'Try another period or clear the filters.'}
+                description={query ? rq.noMatch : t.common.tryAnother}
               />
             ) : (
               <>
                 <RequestsTable requests={rows} />
                 <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
                   <span className="tabular-nums">
-                    {current * PAGE_SIZE + 1}–{current * PAGE_SIZE + rows.length} of {list.length}
+                    {rq.range(current * PAGE_SIZE + 1, current * PAGE_SIZE + rows.length, list.length)}
                   </span>
                   <div className="flex items-center gap-2">
                     <Button
@@ -74,21 +77,19 @@ export function RequestsPage() {
                       size="sm"
                       onClick={() => setPage(current - 1)}
                       disabled={current === 0}
-                      aria-label="Previous page"
+                      aria-label={rq.prevPage}
                     >
-                      <ChevronLeft /> Prev
+                      <ChevronLeft className="rtl:rotate-180" /> {rq.prev}
                     </Button>
-                    <span className="tabular-nums">
-                      Page {current + 1} / {pages}
-                    </span>
+                    <span className="tabular-nums">{rq.page(current + 1, pages)}</span>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setPage(current + 1)}
                       disabled={current >= pages - 1}
-                      aria-label="Next page"
+                      aria-label={rq.nextPage}
                     >
-                      Next <ChevronRight />
+                      {rq.next} <ChevronRight className="rtl:rotate-180" />
                     </Button>
                   </div>
                 </div>

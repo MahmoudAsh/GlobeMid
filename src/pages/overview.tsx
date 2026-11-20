@@ -13,12 +13,15 @@ import { TypeBreakdown } from '@/components/type-breakdown'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useLeaveData } from '@/context/data-context'
 import { useFilters } from '@/context/filters-context'
+import { useI18n } from '@/i18n/i18n-context'
 import { formatDays, formatRange, periodRange, todayKey } from '@/lib/dates'
 import { chartBuckets, employeeRows, filterRequests, onLeaveOn, summarize } from '@/lib/stats'
 
 export function OverviewPage() {
   const { data, loading } = useLeaveData()
   const f = useFilters()
+  const { t } = useI18n()
+  const o = t.overview
 
   const view = useMemo(() => {
     const filters = { department: f.department, type: f.type, status: f.status }
@@ -46,11 +49,10 @@ export function OverviewPage() {
   }, [data, f.range, f.chartRange, f.period, f.department, f.type, f.status])
 
   const s = view.summary
-  const chartBy = { week: 'by day', month: 'by week', year: 'by month', all: 'by month' }[f.period]
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Overview" description={`Leave across the team · ${f.label}`} />
+      <PageHeader title={o.title} description={o.subtitle(f.label)} />
 
       {loading ? (
         <>
@@ -60,35 +62,33 @@ export function OverviewPage() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <StatTile label="Total requests" value={s.total} icon={FileText} hint="in this period" />
-            <StatTile label="Approved days" value={formatDays(s.approvedDays)} icon={CalendarCheck2} hint="working days" />
+            <StatTile label={o.totalRequests} value={s.total} icon={FileText} hint={t.common.inThisPeriod} />
+            <StatTile label={o.approvedDays} value={formatDays(s.approvedDays)} icon={CalendarCheck2} hint={t.common.workingDays} />
             <StatTile
-              label="Approved"
+              label={o.approved}
               value={s.approved}
               icon={CheckCircle2}
               iconClassName="bg-status-approved-bg text-status-approved"
             />
             <StatTile
-              label="Rejected"
+              label={o.rejected}
               value={s.rejected}
               icon={XCircle}
               iconClassName="bg-status-rejected-bg text-status-rejected"
             />
             <StatTile
-              label="Pending"
+              label={o.pending}
               value={s.pending}
               icon={Clock}
               iconClassName="bg-status-pending-bg text-status-pending"
             />
-            <StatTile label="On leave today" value={view.onLeaveToday.length} icon={UserRoundX} hint="approved, as of today" />
+            <StatTile label={o.onLeaveToday} value={view.onLeaveToday.length} icon={UserRoundX} hint={o.onLeaveTodayHint} />
           </div>
 
           <Card>
             <CardHeader>
-              <CardTitle>Approved leave days</CardTitle>
-              <CardDescription>
-                {f.label}, {chartBy}, stacked by leave type
-              </CardDescription>
+              <CardTitle>{o.chartTitle}</CardTitle>
+              <CardDescription>{o.chartSubtitle(f.label, o.chartBy[f.period])}</CardDescription>
             </CardHeader>
             <CardContent>
               <LeaveDaysChart buckets={view.buckets} types={f.type ? [f.type] : undefined} />
@@ -98,8 +98,8 @@ export function OverviewPage() {
           <div className="grid gap-6 lg:grid-cols-3">
             <Card>
               <CardHeader>
-                <CardTitle>By leave type</CardTitle>
-                <CardDescription>Requests and approved days</CardDescription>
+                <CardTitle>{o.byType}</CardTitle>
+                <CardDescription>{o.byTypeSubtitle}</CardDescription>
               </CardHeader>
               <CardContent>
                 <TypeBreakdown summary={s} />
@@ -108,7 +108,7 @@ export function OverviewPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Top 5 by approved days</CardTitle>
+                <CardTitle>{o.top5}</CardTitle>
                 <CardDescription>{f.label}</CardDescription>
               </CardHeader>
               <CardContent>
@@ -128,7 +128,7 @@ export function OverviewPage() {
                             <p className="truncate text-sm font-medium">{e.name}</p>
                             <p className="truncate text-xs text-muted-foreground">{e.department}</p>
                           </div>
-                          <span className="text-sm font-semibold tabular-nums">{formatDays(e.approvedDays)} d</span>
+                          <span className="text-sm font-semibold tabular-nums">{t.units.daysShort(formatDays(e.approvedDays))}</span>
                         </Link>
                       </li>
                     ))}
@@ -139,12 +139,12 @@ export function OverviewPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Who’s off this week</CardTitle>
-                <CardDescription>Current week · approved and pending</CardDescription>
+                <CardTitle>{o.whosOff}</CardTitle>
+                <CardDescription>{o.whosOffSubtitle}</CardDescription>
               </CardHeader>
               <CardContent>
                 {view.offThisWeek.length === 0 ? (
-                  <EmptyState className="py-6" title="Nobody is off this week" />
+                  <EmptyState className="py-6" title={o.nobodyOff} />
                 ) : (
                   <ul className="space-y-3">
                     {view.offThisWeek.map((r) => (

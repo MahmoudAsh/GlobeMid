@@ -1,7 +1,7 @@
 import { CheckCircle2, Clock, XCircle } from 'lucide-react'
-import { STATUS_LABELS } from '@/lib/constants'
 import type { LeaveStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { useI18n } from '@/i18n/i18n-context'
 
 const STYLES: Record<LeaveStatus, { icon: typeof Clock; className: string }> = {
   approved: { icon: CheckCircle2, className: 'bg-status-approved-bg text-status-approved' },
@@ -12,6 +12,7 @@ const STYLES: Record<LeaveStatus, { icon: typeof Clock; className: string }> = {
 /** Status is always icon + label + colour — never colour alone. */
 export function StatusBadge({ status, className }: { status: LeaveStatus; className?: string }) {
   const { icon: Icon, className: tone } = STYLES[status]
+  const { t } = useI18n()
   return (
     <span
       className={cn(
@@ -21,7 +22,7 @@ export function StatusBadge({ status, className }: { status: LeaveStatus; classN
       )}
     >
       <Icon className="size-3.5" aria-hidden />
-      {STATUS_LABELS[status]}
+      {t.status[status]}
     </span>
   )
 }

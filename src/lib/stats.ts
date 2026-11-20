@@ -7,11 +7,10 @@ import {
   eachWeekOfInterval,
   endOfMonth,
   endOfWeek,
-  format,
   startOfMonth,
 } from 'date-fns'
 import { LEAVE_TYPES, WEEK_STARTS_ON } from './constants'
-import { dayAllocation, daysInRange, fromKey, overlaps, toKey, type DayRange, type Period } from './dates'
+import { dayAllocation, fmt, daysInRange, fromKey, overlaps, toKey, type DayRange, type Period } from './dates'
 import type { Employee, LeaveRequest, LeaveStatus, LeaveType } from './types'
 
 export interface Filters {
@@ -113,7 +112,7 @@ export function chartBuckets(requests: LeaveRequest[], period: Period, range: Da
     buckets = []
     for (let d = s; d <= e; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
       const k = toKey(d)
-      buckets.push({ key: k, label: format(d, 'EEE d'), title: format(d, 'EEEE d MMM'), start: k, end: k, values: empty() })
+      buckets.push({ key: k, label: fmt(d, 'EEE d'), title: fmt(d, 'EEEE d MMM'), start: k, end: k, values: empty() })
     }
   } else if (period === 'month') {
     buckets = eachWeekOfInterval({ start: s, end: e }, { weekStartsOn: WEEK_STARTS_ON }).map((w) => {
@@ -122,8 +121,8 @@ export function chartBuckets(requests: LeaveRequest[], period: Period, range: Da
       const we = we0 > e ? e : we0
       return {
         key: toKey(ws),
-        label: `${format(ws, 'd')}–${format(we, 'd MMM')}`,
-        title: `${format(ws, 'd MMM')} – ${format(we, 'd MMM yyyy')}`,
+        label: `${fmt(ws, 'd')}–${fmt(we, 'd MMM')}`,
+        title: `${fmt(ws, 'd MMM')} – ${fmt(we, 'd MMM yyyy')}`,
         start: toKey(ws),
         end: toKey(we),
         values: empty(),
@@ -136,8 +135,8 @@ export function chartBuckets(requests: LeaveRequest[], period: Period, range: Da
       const me = endOfMonth(m) > e ? e : endOfMonth(m)
       return {
         key: toKey(ms),
-        label: format(m, multiYear ? 'MMM yy' : 'MMM'),
-        title: format(m, 'MMMM yyyy'),
+        label: fmt(m, multiYear ? 'MMM yy' : 'MMM'),
+        title: fmt(m, 'MMMM yyyy'),
         start: toKey(ms),
         end: toKey(me),
         values: empty(),

@@ -17,6 +17,7 @@ import {
   startOfWeek,
   startOfYear,
 } from 'date-fns'
+import type { Locale } from 'date-fns'
 import { WEEKEND_DAYS, WEEK_STARTS_ON } from './constants'
 import type { LeaveRequest } from './types'
 
@@ -29,6 +30,14 @@ export interface DayRange {
 }
 
 export const toKey = (d: Date) => format(d, 'yyyy-MM-dd')
+
+/** Locale used for every date shown to people (set by the language switcher). */
+let displayLocale: Locale | undefined
+export function setDateLocale(locale: Locale | undefined) {
+  displayLocale = locale
+}
+/** `format` for display text, in the current UI language. */
+export const fmt = (d: Date, pattern: string) => format(d, pattern, { locale: displayLocale })
 export const fromKey = (k: string) => parseISO(k)
 export const todayKey = () => toKey(new Date())
 
@@ -73,19 +82,23 @@ export function shiftAnchor(period: Period, anchor: Date, step: number): Date {
   }
 }
 
-export function periodLabel(period: Period, anchor: Date): string {
+export function periodLabel(
+  period: Period,
+  anchor: Date,
+  text: { weekOf: (date: string) => string; all: string },
+): string {
   const now = new Date()
   switch (period) {
     case 'week': {
       const s = startOfWeek(anchor, { weekStartsOn: WEEK_STARTS_ON })
-      return `Week of ${format(s, isSameYear(s, now) ? 'd MMM' : 'd MMM yyyy')}`
+      return text.weekOf(fmt(s, isSameYear(s, now) ? 'd MMM' : 'd MMM yyyy'))
     }
     case 'month':
-      return format(anchor, 'MMM yyyy')
+      return fmt(anchor, 'MMM yyyy')
     case 'year':
-      return format(anchor, 'yyyy')
+      return fmt(anchor, 'yyyy')
     case 'all':
-      return 'All time'
+      return text.all
   }
 }
 
@@ -135,14 +148,14 @@ export function dataBounds(requests: LeaveRequest[]): DayRange | null {
   return { start: toKey(minDate(starts)), end: toKey(maxDate(ends)) }
 }
 
-export const formatDate = (k: string) => format(fromKey(k), 'd MMM yyyy')
-export const formatShort = (k: string) => format(fromKey(k), 'd MMM')
+export const formatDate = (k: string) => fmt(fromKey(k), 'd MMM yyyy')
+export const formatShort = (k: string) => fmt(fromKey(k), 'd MMM')
 
 export function formatRange(start: string, end: string) {
   if (start === end) return formatDate(start)
   const s = fromKey(start)
   const e = fromKey(end)
-  if (isSameYear(s, e)) return `${format(s, 'd MMM')} – ${format(e, 'd MMM yyyy')}`
+  if (isSameYear(s, e)) return `${fmt(s, 'd MMM')} – ${fmt(e, 'd MMM yyyy')}`
   return `${formatDate(start)} – ${formatDate(end)}`
 }
 

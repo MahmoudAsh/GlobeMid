@@ -16,6 +16,7 @@ import {
 import type { Filters } from '@/lib/stats'
 import type { LeaveStatus, LeaveType } from '@/lib/types'
 import { useLeaveData } from './data-context'
+import { useI18n } from '@/i18n/i18n-context'
 
 const PERIODS: Period[] = ['week', 'month', 'year', 'all']
 const DEFAULT_PERIOD: Period = 'month'
@@ -46,6 +47,7 @@ const FilterContext = createContext<FilterState | null>(null)
 export function FilterProvider({ children }: { children: ReactNode }) {
   const [params, setParams] = useSearchParams()
   const { data } = useLeaveData()
+  const { t: tr } = useI18n()
 
   const p = params.get('p') as Period | null
   const period: Period = p && PERIODS.includes(p) ? p : DEFAULT_PERIOD
@@ -87,7 +89,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
       status,
       range,
       chartRange: range ?? dataBounds(data.requests),
-      label: periodLabel(period, anchor),
+      label: periodLabel(period, anchor, { weekOf: tr.period.weekOf, all: tr.period.all }),
       isCurrent: period === 'all' || (!!range && range.start <= today && range.end >= today),
       search: params.toString() ? `?${params.toString()}` : '',
       setPeriod: (np) => update((n) => (np === DEFAULT_PERIOD ? n.delete('p') : n.set('p', np))),
@@ -103,7 +105,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
         }),
       activeFilterCount: [department, type, status].filter(Boolean).length,
     }
-  }, [anchorKey, period, department, type, status, params, data.requests, update, setAnchorKey])
+  }, [anchorKey, period, department, type, status, params, data.requests, update, setAnchorKey, tr])
 
   return <FilterContext.Provider value={value}>{children}</FilterContext.Provider>
 }

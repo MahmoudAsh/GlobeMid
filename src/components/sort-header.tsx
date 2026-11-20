@@ -23,7 +23,7 @@ export function SortHeader<K extends string>({
   const Icon = !active ? ArrowUpDown : sort.dir === 'asc' ? ArrowUp : ArrowDown
   return (
     <TableHead
-      className={cn(align === 'right' && 'text-right', className)}
+      className={cn(align === 'right' && 'text-end', className)}
       aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
     >
       <button
