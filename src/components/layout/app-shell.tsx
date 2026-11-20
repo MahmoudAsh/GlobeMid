@@ -3,9 +3,8 @@ import { useState, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useFilters } from '@/context/filters-context'
-import { useTheme } from '@/hooks/use-theme'
+import { useTheme, type Theme } from '@/hooks/use-theme'
 import { cn } from '@/lib/utils'
 import { FilterBar } from './filter-bar'
 
@@ -41,7 +40,7 @@ function NavItems({ onNavigate, vertical }: { onNavigate?: () => void; vertical?
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { theme, toggle } = useTheme()
+  const { theme, setTheme } = useTheme()
   const [open, setOpen] = useState(false)
   const { search } = useFilters()
 
@@ -77,14 +76,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <div className="ml-auto">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle dark mode">
-                  {theme === 'dark' ? <Sun /> : <Moon />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</TooltipContent>
-            </Tooltip>
+            <ThemeSwitch theme={theme} onChange={setTheme} />
           </div>
         </div>
       </header>
@@ -93,6 +85,38 @@ export function AppShell({ children }: { children: ReactNode }) {
         <FilterBar />
         {children}
       </main>
+    </div>
+  )
+}
+
+/** Light / Dark segmented switch (labels hidden on very small screens, icons always shown). */
+function ThemeSwitch({ theme, onChange }: { theme: Theme; onChange: (t: Theme) => void }) {
+  const options = [
+    { value: 'light' as const, label: 'Light', icon: Sun },
+    { value: 'dark' as const, label: 'Dark', icon: Moon },
+  ]
+  return (
+    <div role="radiogroup" aria-label="Colour theme" className="flex items-center gap-0.5 rounded-lg border bg-muted p-0.5">
+      {options.map(({ value, label, icon: Icon }) => {
+        const active = theme === value
+        return (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            aria-label={`${label} mode`}
+            onClick={() => onChange(value)}
+            className={cn(
+              'inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+              active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <Icon className="size-4" aria-hidden />
+            <span className="hidden sm:inline">{label}</span>
+          </button>
+        )
+      })}
     </div>
   )
 }

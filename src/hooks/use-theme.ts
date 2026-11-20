@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
-type Theme = 'light' | 'dark'
+export type Theme = 'light' | 'dark'
 const KEY = 'leave-tracker-theme'
 
 function initialTheme(): Theme {
@@ -24,5 +24,5 @@ export function useTheme() {
     }
   }, [theme])
   const toggle = useCallback(() => setTheme((t) => (t === 'dark' ? 'light' : 'dark')), [])
-  return { theme, toggle }
+  return { theme, setTheme, toggle }
 }
