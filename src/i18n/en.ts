@@ -28,7 +28,15 @@ export const en = {
     allStatuses: 'All statuses',
     clear: 'Clear',
   },
-  leaveType: { Annual: 'Annual', Sick: 'Sick', Casual: 'Casual', Unpaid: 'Unpaid', Other: 'Other' } satisfies Record<LeaveType, string>,
+  leaveType: {
+    Annual: 'Annual',
+    Sick: 'Sick',
+    DayOff: 'Day off',
+    Shift: 'Shift change',
+    Training: 'Training / outside',
+    Holiday: 'Holiday',
+    Other: 'Other',
+  } satisfies Record<LeaveType, string>,
   status: { approved: 'Approved', rejected: 'Rejected', pending: 'Pending' } satisfies Record<LeaveStatus, string>,
 
   units: {
@@ -42,7 +50,10 @@ export const en = {
     noLeaveTitle: 'No leave in this period',
     tryAnother: 'Try another period or clear the filters.',
     inThisPeriod: 'in this period',
-    workingDays: 'working days',
+    workingDays: 'leave days',
+    notInRoster: 'Not in FSRs list',
+    notInRosterHint: 'This name appears in requests but not in the FSRs roster tab',
+    writtenAs: (raw: string) => `written as “${raw}”`,
     newestFirst: 'Newest first',
     searchNameOrReason: 'Search by name or reason',
     total: 'Total',
@@ -57,8 +68,8 @@ export const en = {
     approved: 'Approved',
     rejected: 'Rejected',
     pending: 'Pending',
-    onLeaveToday: 'On leave today',
-    onLeaveTodayHint: 'approved, as of today',
+    onLeaveToday: 'Off this week',
+    onLeaveTodayHint: 'people, approved',
     chartTitle: 'Approved leave days',
     chartBy: { week: 'by day', month: 'by week', year: 'by month', all: 'by month' },
     chartSubtitle: (label: string, by: string) => `${label}, ${by}, stacked by leave type`,
@@ -66,7 +77,7 @@ export const en = {
     byTypeSubtitle: 'Requests and approved days',
     top5: 'Top 5 by approved days',
     whosOff: 'Who’s off this week',
-    whosOffSubtitle: 'Current week · approved and pending',
+    whosOffSubtitle: 'Current week · leave, days off, sick, training',
     nobodyOff: 'Nobody is off this week',
   },
 
@@ -81,6 +92,7 @@ export const en = {
     title: 'Employees',
     subtitle: (n: number, label: string) => `${plural(n, 'person', 'people')} · ${label}`,
     search: 'Search by name or department',
+    searchName: 'Search by name',
     searchLabel: 'Search employees',
     noMatch: 'No employees match your search',
     col: {
@@ -94,7 +106,7 @@ export const en = {
       lastLeave: 'Last leave',
     },
     totalRow: (n: number) => `Total (${n})`,
-    footnote: 'Annual / Sick / Casual columns show approved days. “Last leave” is the latest approved leave start date.',
+    footnote: 'Annual / Sick columns show approved days. “Last leave” is the week of the latest approved leave or day off.',
   },
 
   report: {

@@ -7,6 +7,8 @@ interface DataState {
   error: string | null
   data: LeaveData
   employeesById: Map<string, Employee>
+  /** False when the data has no department info (then the department filter/column are hidden). */
+  hasDepartments: boolean
   reload: () => void
 }
 
@@ -33,7 +35,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const reload = useCallback(() => setNonce((n) => n + 1), [])
   const value = useMemo<DataState>(
-    () => ({ loading, error, data, employeesById: new Map(data.employees.map((e) => [e.id, e])), reload }),
+    () => ({
+      loading,
+      error,
+      data,
+      employeesById: new Map(data.employees.map((e) => [e.id, e])),
+      hasDepartments: data.employees.some((e) => !!e.department),
+      reload,
+    }),
     [loading, error, data, reload],
   )
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>

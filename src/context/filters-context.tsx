@@ -52,7 +52,14 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   const p = params.get('p') as Period | null
   const period: Period = p && PERIODS.includes(p) ? p : DEFAULT_PERIOD
   const d = params.get('d')
-  const anchorKey = isValidKey(d) ? d : todayKey()
+  // Default date: today — unless the data stops before this month (e.g. an old sheet export),
+  // then open on the latest week that has requests so the first view isn't empty.
+  const defaultKey = useMemo(() => {
+    const today = todayKey()
+    const latest = data.requests.reduce((m, r) => (r.startDate > m ? r.startDate : m), '')
+    return latest && latest < today.slice(0, 8) + '01' ? latest : today
+  }, [data.requests])
+  const anchorKey = isValidKey(d) ? d : defaultKey
   const t = params.get('type') as LeaveType | null
   const s = params.get('status') as LeaveStatus | null
   const department = params.get('dept')
@@ -73,8 +80,8 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   )
 
   const setAnchorKey = useCallback(
-    (next: URLSearchParams, key: string) => (key === todayKey() ? next.delete('d') : next.set('d', key)),
-    [],
+    (next: URLSearchParams, key: string) => (key === defaultKey ? next.delete('d') : next.set('d', key)),
+    [defaultKey],
   )
 
   const value = useMemo<FilterState>(() => {
@@ -95,7 +102,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
       setPeriod: (np) => update((n) => (np === DEFAULT_PERIOD ? n.delete('p') : n.set('p', np))),
       step: (dir) => update((n) => setAnchorKey(n, toKey(shiftAnchor(period, anchor, dir)))),
       setAnchor: (date) => update((n) => setAnchorKey(n, toKey(date))),
-      resetToToday: () => update((n) => n.delete('d')),
+      resetToToday: () => update((n) => setAnchorKey(n, todayKey())),
       setFilter: (key, v) => update((n) => (v ? n.set(key === 'department' ? 'dept' : key, v) : n.delete(key === 'department' ? 'dept' : key))),
       clearFilters: () =>
         update((n) => {

@@ -13,10 +13,10 @@ export function DaysCell({ req }: { req: LeaveRequest }) {
   const { range } = useFilters()
   const { t } = useI18n()
   const inPeriod = daysInRange(req, range)
-  const clipped = Math.abs(inPeriod - req.days) > 1e-9
+  const clipped = req.days > 0 && Math.abs(inPeriod - req.days) > 1e-9
   return (
     <TableCell className="text-end whitespace-nowrap tabular-nums">
-      <span className="font-medium">{formatDays(req.days)}</span>
+      {req.days === 0 ? <span className="text-muted-foreground/60">—</span> : <span className="font-medium">{formatDays(req.days)}</span>}
       {clipped && (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -35,6 +35,8 @@ export function RequestsTable({ requests, showEmployee = true }: { requests: Lea
   const { search } = useFilters()
   const { t } = useI18n()
   const c = t.requests.col
+  // The weekly sheet has no submission date — hide the column instead of showing a row of dashes.
+  const showSubmitted = requests.some((r) => r.submittedAt)
   return (
     <Table className={showEmployee ? 'min-w-[1000px]' : 'min-w-[760px]'}>
       <TableHeader>
@@ -45,7 +47,7 @@ export function RequestsTable({ requests, showEmployee = true }: { requests: Lea
           <TableHead className="text-end">{c.days}</TableHead>
           <TableHead>{c.reason}</TableHead>
           <TableHead>{c.status}</TableHead>
-          <TableHead>{c.submitted}</TableHead>
+          {showSubmitted && <TableHead>{c.submitted}</TableHead>}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -59,7 +61,9 @@ export function RequestsTable({ requests, showEmployee = true }: { requests: Lea
                 >
                   {r.employee}
                 </Link>
-                <p className="text-xs text-muted-foreground">{r.department}</p>
+                {(r.department || r.employeeRaw) && (
+                  <p className="text-xs text-muted-foreground">{r.department ?? t.common.writtenAs(r.employeeRaw!)}</p>
+                )}
               </TableCell>
             )}
             <TableCell className="whitespace-nowrap">{formatRange(r.startDate, r.endDate)}</TableCell>
@@ -67,15 +71,17 @@ export function RequestsTable({ requests, showEmployee = true }: { requests: Lea
               <LeaveTypeLabel type={r.type} />
             </TableCell>
             <DaysCell req={r} />
-            <TableCell className="max-w-64 truncate text-muted-foreground" title={r.reason}>
+            <TableCell className="max-w-80 min-w-56 text-muted-foreground">
               {r.reason || '—'}
             </TableCell>
             <TableCell>
               <StatusBadge status={r.status} />
             </TableCell>
-            <TableCell className="whitespace-nowrap text-muted-foreground">
-              {r.submittedAt ? formatDate(r.submittedAt) : '—'}
-            </TableCell>
+            {showSubmitted && (
+              <TableCell className="whitespace-nowrap text-muted-foreground">
+                {r.submittedAt ? formatDate(r.submittedAt) : '—'}
+              </TableCell>
+            )}
           </TableRow>
         ))}
       </TableBody>

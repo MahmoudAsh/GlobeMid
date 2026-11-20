@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/empty-state'
 import { LeaveDaysChart } from '@/components/leave-days-chart'
 import { CardSkeleton, TilesSkeleton } from '@/components/loading'
 import { RequestsTable } from '@/components/requests-table'
+import { NotInRosterTag } from '@/components/roster-tag'
 import { StatTile } from '@/components/stat-tile'
 import { TypeBreakdown } from '@/components/type-breakdown'
 import { Button } from '@/components/ui/button'
@@ -85,8 +86,10 @@ export function EmployeeReportPage() {
         <EmployeeAvatar name={employee.name} className="size-14 text-base" />
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{employee.name}</h1>
-          <p className="text-sm text-muted-foreground">
-            {employee.department ?? t.common.noDepartment} · {f.label}
+          <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            {employee.department && <span>{employee.department} ·</span>}
+            <span>{f.label}</span>
+            {!employee.inRoster && <NotInRosterTag />}
           </p>
         </div>
       </div>

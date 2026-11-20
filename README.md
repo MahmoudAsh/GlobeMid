@@ -45,12 +45,11 @@ IBM Plex Sans Arabic. The choice is remembered per browser.
 ### How the numbers are counted
 
 - A request **belongs to a period** if its date range overlaps the period.
-- **Approved days** count only the working days that fall *inside* the period. A request from 29 Nov to 2 Dec
-  counts 2 days in November and 2 in December. Tables show this as `4 (2 in period)`.
-- **Working days** exclude Friday and Saturday (Egypt weekend). Weeks run Sunday to Saturday
-  (`WEEK_STARTS_ON` in `src/lib/constants.ts`).
-- "On leave today" and "Who's off this week" always use the real today and the current week. They respect the
-  department and type filters.
+- **Approved days** = the day counts of approved requests (see *How rows are read* below).
+- Weeks run **Saturday to Friday**, matching the sheet (`WEEK_STARTS_ON` in `src/lib/constants.ts`).
+- "Off this week" and "Who's off this week" always use the real current week. They respect the type filter
+  and count annual, sick, day off, training and holiday requests, but not shift changes.
+- If the data stops before the current month, the app opens on the latest week that has data.
 - Every page uses the same functions in `src/lib/stats.ts`, so Overview, Employees and the Employee report
   always agree.
 
@@ -61,7 +60,7 @@ src/
   lib/
     types.ts         LeaveRequest, Employee
     data-source.ts   loadLeaveData() — the ONLY place that knows where data comes from
-    mock-data.ts     55 employees / ~200 requests (seeded, deterministic)
+    mock-data.ts     invented demo data in the same shape as the real sheet
     constants.ts     leave types + fixed colours, statuses, weekend, week start
     dates.ts         periods, working days, overlap / in-period day maths
     stats.ts         filtering and aggregation shared by all pages
@@ -89,47 +88,55 @@ The app uses a `HashRouter` and relative asset paths, so it works on any static 
 > Leave data will be visible to anyone with the URL. To limit access to company emails, put the site behind
 > **Cloudflare Access** (Zero Trust → Access → Applications), which is free for up to 50 users.
 
-## Connecting the Google Sheet
+## The data: the "Leave" Google Sheet
 
-Everything happens in **`src/lib/data-source.ts`**. No other file needs to change.
+Everything about reading data lives in **`src/lib/data-source.ts`**. No other file needs to change.
 
-1. Set `DATA_SOURCE` to `'google-sheet'`.
-2. Fill in `SHEET_CONFIG.spreadsheetId` (from the sheet URL) and `sheetName` (the tab name).
-3. Edit `COLUMN_MAPPING` so each **sheet header** maps to an app field:
+The app reads three tabs. Only the listed columns are read; anything else, such as the roster's
+*Address* column, is ignored.
 
-   ```ts
-   export const COLUMN_MAPPING = {
-     'Employee Name': 'employee',
-     'Leave Type': 'type',
-     'Start Date': 'startDate',
-     'End Date': 'endDate',
-     'Number of Days': 'days',   // optional: if missing, working days are calculated (Fri/Sat excluded)
-     Reason: 'reason',
-     ...
-   }
-   ```
+| Tab | Columns used | Purpose |
+| --- | --- | --- |
+| **Weekly Requests** | Name · Request · Status · Annual · Week · Note | One row per request |
+| **FSRs** | FSR Names (and Department, if added later) | The roster. People with no requests still appear |
+| **Aliases** *(add this tab)* | Name in requests · Correct name | Fixes spelling variants ("Moahmed Ali" → "Mohamed Ali") |
 
-   Free-text leave types are mapped to Annual / Sick / Casual / Unpaid / Other by `normalizeLeaveType()`
-   in `constants.ts`. Date cells in common formats (`2026-11-20`, `20/11/2026`, …) are parsed by `DATE_FORMATS`.
-4. Implement `loadFromGoogleSheet()` using one of the two options below. The row-mapping helper
-   `rowsToLeaveData(rows, rowStatuses?)` and a small `parseCsv()` are already written.
+Header names and tab names are configurable in `COLUMN_MAPPING` / `SHEET_CONFIG`. Matching ignores case
+and extra spaces.
 
-### ⚠️ Approval status is stored as cell colour
+**How rows are read**
 
-Today the reviewer marks requests by colouring rows: green means approved, red means rejected, no colour means
-pending. **A CSV export of a Google Sheet does not include cell colours.** Choose one of these:
+- **Status:** "Approved" means approved and "Rejected" means rejected. *Sick* and *Training* are recorded facts,
+  so they count as approved. A blank cell means **pending**. Cell colours are not used.
+- **Week:** a label like `27-12 to 2-1` (Saturday to Friday). The year isn't written, so it is inferred:
+  the last row is the latest year that isn't far in the future, and going up the sheet the year steps back
+  at each December/January boundary. A weekly request is counted in the period that contains its Saturday.
+- **Type:** the free-text *Request* is sorted into Annual, Sick, Day off, Shift change, Training / outside,
+  Holiday or Other (`classifyRequest()`). Shift changes don't count as "off".
+- **Days:** the number in the *Annual* column (e.g. `2 Day`). For sick requests, the number in the text is
+  used too (`Out of schedule 3 Day ( Sick )`). Otherwise the row counts 0 days.
+- **Names:** spaces and capitals are ignored when matching, then *Aliases* are applied, then the name is
+  matched to the roster. Names that aren't in FSRs are still shown, with a "Not in FSRs list" tag.
 
-- **(a) Add a "Status" column** (Approved / Rejected / Pending). This is the simplest option. Share the sheet as
-  "Anyone with the link can view" and fetch
-  `https://docs.google.com/spreadsheets/d/<id>/gviz/tq?tqx=out:csv&sheet=<tab>`, then
-  `rowsToLeaveData(parseCsv(text))`.
-- **(b) Keep the colours** and read them with the **Google Sheets API v4**:
-  `spreadsheets.get` with `includeGridData=true`, using
-  `fields=sheets.data.rowData.values(formattedValue,effectiveFormat.backgroundColor)` and a browser
-  **API key restricted** to the Sheets API and your Pages domain. Convert each row's background with
-  `colorToStatus()` (green → approved, red → rejected, otherwise pending). Pass those as `rowStatuses`.
+### Where the data comes from (`VITE_DATA_SOURCE`)
 
-Both options are described in the `TODO(google-sheet)` comments in `data-source.ts`.
+| Value | Reads | Use for |
+| --- | --- | --- |
+| `mock` (default) | invented demo data in the same format | development, demos |
+| `csv-files` | `./data/weekly-requests.csv`, `./data/fsrs.csv`, `./data/aliases.csv` next to `index.html` | a private preview from an export |
+| `google-sheet` | the live sheet | production |
 
-People who never requested leave only appear if there's an employee list. Point
-`SHEET_CONFIG.employeesSheetName` at a roster tab and merge it in `deriveEmployees()`.
+**Connecting the live sheet**
+
+1. Share the sheet as **"Anyone with the link can view"**. The app reads it with the public CSV export, so
+   no API key is needed now that status is a text column.
+2. In Cloudflare Pages → *Settings → Environment variables*, add:
+   - `VITE_DATA_SOURCE = google-sheet`
+   - `VITE_SHEET_ID = <the long id from the sheet URL>`
+3. Redeploy. Locally: `VITE_DATA_SOURCE=google-sheet VITE_SHEET_ID=... npm run dev`.
+
+> ⚠️ "Anyone with the link" means anyone who finds the link can read the sheet. If that's not acceptable,
+> keep the sheet private and add a small proxy (e.g. a Cloudflare Worker with a service account) later.
+> Only `loadTabs()` in `data-source.ts` would change.
+
+Real exports (`*.xlsx`, `*.csv`, `public/data/`) are git-ignored. Never commit employee data.

@@ -20,7 +20,7 @@ const ALL = '__all'
 
 export function FilterBar() {
   const f = useFilters()
-  const { data } = useLeaveData()
+  const { data, hasDepartments } = useLeaveData()
   const { t, lang } = useI18n()
   const [calOpen, setCalOpen] = useState(false)
   const departments = useMemo(
@@ -91,6 +91,7 @@ export function FilterBar() {
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+          {hasDepartments && (
           <Select value={f.department ?? ALL} onValueChange={(v) => f.setFilter('department', v === ALL ? null : v)}>
             <SelectTrigger className="w-full sm:w-48" aria-label={t.filters.department}>
               <SelectValue />
@@ -104,6 +105,7 @@ export function FilterBar() {
               ))}
             </SelectContent>
           </Select>
+          )}
 
           <Select value={f.type ?? ALL} onValueChange={(v) => f.setFilter('type', v === ALL ? null : v)}>
             <SelectTrigger className="w-full sm:w-36" aria-label={t.filters.type}>

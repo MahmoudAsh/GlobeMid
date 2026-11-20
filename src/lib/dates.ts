@@ -102,9 +102,15 @@ export function periodLabel(
   }
 }
 
-/** Does the request's date range overlap the period? `null` range = all time. */
-export function overlaps(req: Pick<LeaveRequest, 'startDate' | 'endDate'>, range: DayRange | null) {
+/**
+ * Does the request belong to the period? `null` range = all time.
+ * Day-precise requests: their date range overlaps the period.
+ * Week-only requests (the sheet just says which week): their week's first day is in the period,
+ * so a week that straddles two months is counted once, in the month it starts.
+ */
+export function overlaps(req: Pick<LeaveRequest, 'startDate' | 'endDate' | 'precision'>, range: DayRange | null) {
   if (!range) return true
+  if (req.precision === 'week') return req.startDate >= range.start && req.startDate <= range.end
   return req.startDate <= range.end && req.endDate >= range.start
 }
 
@@ -118,6 +124,12 @@ const allocationCache = new WeakMap<LeaveRequest, [string, number][]>()
 export function dayAllocation(req: LeaveRequest): [string, number][] {
   const cached = allocationCache.get(req)
   if (cached) return cached
+  // Week-only requests: we don't know which days, so count them on the week's first day.
+  if (req.precision === 'week') {
+    const result: [string, number][] = [[req.startDate, req.days]]
+    allocationCache.set(req, result)
+    return result
+  }
   let dates: string[] = []
   if (req.endDate >= req.startDate) {
     dates = eachDayOfInterval({ start: fromKey(req.startDate), end: fromKey(req.endDate) })

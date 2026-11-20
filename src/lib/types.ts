@@ -1,37 +1,49 @@
 /**
- * Core domain types. Everything in the UI is built on these two shapes,
- * whatever the data source is (mock data today, the Google Sheet later).
+ * Core domain types. Everything in the UI is built on these shapes,
+ * whatever the data source is (mock data, local CSV files, or the Google Sheet).
  */
 
 export type LeaveStatus = 'approved' | 'rejected' | 'pending'
 
-/** Known leave types get a fixed colour; anything else from the sheet is shown as "Other". */
-export type LeaveType = 'Annual' | 'Sick' | 'Casual' | 'Unpaid' | 'Other'
+/**
+ * Request categories. The sheet's "Request" column is free text, so each row is
+ * classified by `classifyRequest()` in `data-source.ts`.
+ */
+export type LeaveType = 'Annual' | 'Sick' | 'DayOff' | 'Shift' | 'Training' | 'Holiday' | 'Other'
 
 export interface Employee {
-  /** URL-safe id derived from the name (see `employeeId`). */
+  /** URL-safe id derived from the (corrected) name. */
   id: string
   name: string
   department?: string
+  /** False when the person appears in requests but not in the roster (FSRs tab). */
+  inRoster: boolean
 }
 
 export interface LeaveRequest {
   id: string
-  /** Employee name, exactly as written in the sheet. */
+  /** Employee name after alias correction. */
   employee: string
-  /** Id of the matching `Employee` (derived from the name). */
+  /** Name exactly as typed in the sheet (shown when it differs). */
+  employeeRaw?: string
   employeeId: string
   department?: string
   type: LeaveType
-  /** ISO date, `yyyy-MM-dd`, inclusive. */
+  /** ISO date, `yyyy-MM-dd`, inclusive. For weekly data: the week's Saturday. */
   startDate: string
-  /** ISO date, `yyyy-MM-dd`, inclusive. */
+  /** ISO date, `yyyy-MM-dd`, inclusive. For weekly data: the week's Friday. */
   endDate: string
-  /** Working days requested (from the sheet, or calculated excluding Fri/Sat). */
+  /**
+   * 'week' when the sheet only says which week (not which days).
+   * Such a request belongs to the period containing its week's first day,
+   * and its days are counted on that day.
+   */
+  precision?: 'day' | 'week'
+  /** Leave days (Annual column, or the number written in a sick request). 0 when none. */
   days: number
+  /** The request text (+ note). */
   reason: string
   status: LeaveStatus
-  /** ISO date the request was submitted, if known. */
   submittedAt?: string
 }
 

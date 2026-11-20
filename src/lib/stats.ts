@@ -9,7 +9,7 @@ import {
   endOfWeek,
   startOfMonth,
 } from 'date-fns'
-import { LEAVE_TYPES, WEEK_STARTS_ON } from './constants'
+import { LEAVE_TYPES, OFF_TYPES, WEEK_STARTS_ON } from './constants'
 import { dayAllocation, fmt, daysInRange, fromKey, overlaps, toKey, type DayRange, type Period } from './dates'
 import type { Employee, LeaveRequest, LeaveStatus, LeaveType } from './types'
 
@@ -82,7 +82,7 @@ export function employeeRows(employees: Employee[], requests: LeaveRequest[], ra
   for (const r of requests) grouped.set(r.employeeId, [...(grouped.get(r.employeeId) ?? []), r])
   return employees.map((e) => {
     const list = grouped.get(e.id) ?? []
-    const approved = list.filter((r) => r.status === 'approved')
+    const approved = list.filter((r) => r.status === 'approved' && OFF_TYPES.includes(r.type))
     const lastLeave = approved.reduce<string | null>((m, r) => (!m || r.startDate > m ? r.startDate : m), null)
     return { ...e, ...summarize(list, range), lastLeave }
   })
@@ -108,7 +108,36 @@ export function chartBuckets(requests: LeaveRequest[], period: Period, range: Da
   const empty = () => Object.fromEntries(LEAVE_TYPES.map((t) => [t, 0])) as Record<LeaveType, number>
   let buckets: ChartBucket[]
 
-  if (period === 'week') {
+  // Weekly sheet data has no day detail: show the week as one bar, and a month as its weeks.
+  const weekly = requests.length > 0 && requests.every((r) => r.precision === 'week')
+
+  if (period === 'week' && weekly) {
+    buckets = [
+      {
+        key: range.start,
+        label: `${fmt(s, 'd MMM')} – ${fmt(e, 'd MMM')}`,
+        title: `${fmt(s, 'd MMM')} – ${fmt(e, 'd MMM yyyy')}`,
+        start: range.start,
+        end: range.end,
+        values: empty(),
+      },
+    ]
+  } else if (period === 'month' && weekly) {
+    // Weeks that START in this month (that's where weekly requests are counted).
+    buckets = eachWeekOfInterval({ start: s, end: e }, { weekStartsOn: WEEK_STARTS_ON })
+      .filter((w) => w >= s)
+      .map((w) => {
+        const we = endOfWeek(w, { weekStartsOn: WEEK_STARTS_ON })
+        return {
+          key: toKey(w),
+          label: `${fmt(w, 'd MMM')}`,
+          title: `${fmt(w, 'd MMM')} – ${fmt(we, 'd MMM yyyy')}`,
+          start: toKey(w),
+          end: toKey(we),
+          values: empty(),
+        }
+      })
+  } else if (period === 'week') {
     buckets = []
     for (let d = s; d <= e; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
       const k = toKey(d)

@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/empty-state'
 import { TypeSwatch } from '@/components/leave-type'
 import { TableSkeleton } from '@/components/loading'
 import { PageHeader } from '@/components/page-header'
+import { NotInRosterTag } from '@/components/roster-tag'
 import { SortHeader, compareValues, type SortDir } from '@/components/sort-header'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -17,14 +18,14 @@ import { formatDate, formatDays } from '@/lib/dates'
 import { employeeRows, filterRequests, type EmployeeRow } from '@/lib/stats'
 import type { LeaveType } from '@/lib/types'
 
-type Key = 'name' | 'department' | 'total' | 'approved' | 'rejected' | 'pending' | 'approvedDays' | 'Annual' | 'Sick' | 'Casual' | 'lastLeave'
-const TYPE_COLS = ['Annual', 'Sick', 'Casual'] as const satisfies readonly LeaveType[]
+type Key = 'name' | 'department' | 'total' | 'approved' | 'rejected' | 'pending' | 'approvedDays' | 'Annual' | 'Sick' | 'lastLeave'
+const TYPE_COLS = ['Annual', 'Sick'] as const satisfies readonly LeaveType[]
 
 const value = (r: EmployeeRow, k: Key) =>
-  k === 'Annual' || k === 'Sick' || k === 'Casual' ? r.byType[k].approvedDays : r[k]
+  k === 'Annual' || k === 'Sick' ? r.byType[k].approvedDays : r[k]
 
 export function EmployeesPage() {
-  const { data, loading } = useLeaveData()
+  const { data, loading, hasDepartments } = useLeaveData()
   const f = useFilters()
   const navigate = useNavigate()
   const { t } = useI18n()
@@ -48,7 +49,7 @@ export function EmployeesPage() {
   }, [rows, query, sort])
 
   const totals = useMemo(() => {
-    const sum = { total: 0, approved: 0, rejected: 0, pending: 0, approvedDays: 0, Annual: 0, Sick: 0, Casual: 0 }
+    const sum = { total: 0, approved: 0, rejected: 0, pending: 0, approvedDays: 0, Annual: 0, Sick: 0 }
     for (const r of visible) {
       sum.total += r.total
       sum.approved += r.approved
@@ -78,7 +79,7 @@ export function EmployeesPage() {
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder={t.employees.search}
+                placeholder={hasDepartments ? t.employees.search : t.employees.searchName}
                 className="ps-8"
                 aria-label={t.employees.searchLabel}
               />
@@ -88,11 +89,11 @@ export function EmployeesPage() {
               <EmptyState icon={Users} title={t.employees.noMatch} />
             ) : (
               <div className="-mx-4 sm:mx-0">
-                <Table className="min-w-[960px]">
+                <Table className={hasDepartments ? 'min-w-[960px]' : 'min-w-[820px]'}>
                   <TableHeader>
                     <TableRow>
                       <SortHeader label={c.name} column="name" sort={sort} onSort={onSort} />
-                      <SortHeader label={c.department} column="department" sort={sort} onSort={onSort} />
+                      {hasDepartments && <SortHeader label={c.department} column="department" sort={sort} onSort={onSort} />}
                       <SortHeader label={c.requests} column="total" sort={sort} onSort={onSort} align="right" />
                       <SortHeader label={c.approved} column="approved" sort={sort} onSort={onSort} align="right" />
                       <SortHeader label={c.rejected} column="rejected" sort={sort} onSort={onSort} align="right" />
@@ -112,16 +113,19 @@ export function EmployeesPage() {
                         onClick={() => open(r.id)}
                       >
                         <TableCell>
-                          <Link
-                            to={{ pathname: `/employees/${r.id}`, search: f.search }}
-                            className="flex items-center gap-2.5 font-medium hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <EmployeeAvatar name={r.name} className="size-7" />
-                            {r.name}
-                          </Link>
+                          <div className="flex items-center gap-2">
+                            <Link
+                              to={{ pathname: `/employees/${r.id}`, search: f.search }}
+                              className="flex items-center gap-2.5 font-medium whitespace-nowrap hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <EmployeeAvatar name={r.name} className="size-7" />
+                              {r.name}
+                            </Link>
+                            {!r.inRoster && <NotInRosterTag />}
+                          </div>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">{r.department ?? '—'}</TableCell>
+                        {hasDepartments && <TableCell className="text-muted-foreground">{r.department ?? '—'}</TableCell>}
                         <Num v={r.total} />
                         <Num v={r.approved} />
                         <Num v={r.rejected} />
@@ -139,7 +143,7 @@ export function EmployeesPage() {
                   <TableFooter>
                     <TableRow>
                       <TableCell className="font-medium">{t.employees.totalRow(visible.length)}</TableCell>
-                      <TableCell />
+                      {hasDepartments && <TableCell />}
                       <Num v={totals.total} strong />
                       <Num v={totals.approved} strong />
                       <Num v={totals.rejected} strong />

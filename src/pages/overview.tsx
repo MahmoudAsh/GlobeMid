@@ -14,8 +14,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useLeaveData } from '@/context/data-context'
 import { useFilters } from '@/context/filters-context'
 import { useI18n } from '@/i18n/i18n-context'
-import { formatDays, formatRange, periodRange, todayKey } from '@/lib/dates'
-import { chartBuckets, employeeRows, filterRequests, onLeaveOn, summarize } from '@/lib/stats'
+import { OFF_TYPES } from '@/lib/constants'
+import { formatDays, formatRange, periodRange } from '@/lib/dates'
+import { chartBuckets, employeeRows, filterRequests, summarize } from '@/lib/stats'
 
 export function OverviewPage() {
   const { data, loading } = useLeaveData()
@@ -35,17 +36,16 @@ export function OverviewPage() {
       .sort((a, b) => b.approvedDays - a.approvedDays || a.name.localeCompare(b.name))
       .slice(0, 5)
 
-    // "Today" and "this week" are always the real today / current week (not the selected period),
-    // but they respect the department and leave-type filters.
-    const today = todayKey()
+    // "This week" is always the real current week (not the selected period), but it respects
+    // the department and type filters. Only types that mean the person is away count (not shift changes).
     const noStatus = { ...filters, status: null }
-    const onLeaveToday = onLeaveOn(filterRequests(data.requests, { start: today, end: today }, noStatus), today)
     const week = periodRange('week', new Date())!
     const offThisWeek = filterRequests(data.requests, week, noStatus)
-      .filter((r) => r.status !== 'rejected')
+      .filter((r) => r.status !== 'rejected' && OFF_TYPES.includes(r.type))
       .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.employee.localeCompare(b.employee))
+    const peopleOffThisWeek = new Set(offThisWeek.filter((r) => r.status === 'approved').map((r) => r.employeeId)).size
 
-    return { summary, buckets, top, onLeaveToday, offThisWeek }
+    return { summary, buckets, top, peopleOffThisWeek, offThisWeek }
   }, [data, f.range, f.chartRange, f.period, f.department, f.type, f.status])
 
   const s = view.summary
@@ -82,7 +82,7 @@ export function OverviewPage() {
               icon={Clock}
               iconClassName="bg-status-pending-bg text-status-pending"
             />
-            <StatTile label={o.onLeaveToday} value={view.onLeaveToday.length} icon={UserRoundX} hint={o.onLeaveTodayHint} />
+            <StatTile label={o.onLeaveToday} value={view.peopleOffThisWeek} icon={UserRoundX} hint={o.onLeaveTodayHint} />
           </div>
 
           <Card>
@@ -126,7 +126,7 @@ export function OverviewPage() {
                           <EmployeeAvatar name={e.name} />
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-medium">{e.name}</p>
-                            <p className="truncate text-xs text-muted-foreground">{e.department}</p>
+                            <p className="truncate text-xs text-muted-foreground">{e.department ?? (e.inRoster ? '' : t.common.notInRoster)}</p>
                           </div>
                           <span className="text-sm font-semibold tabular-nums">{t.units.daysShort(formatDays(e.approvedDays))}</span>
                         </Link>

@@ -43,7 +43,15 @@ export const ar: Dict = {
     allStatuses: 'كل الحالات',
     clear: 'مسح',
   },
-  leaveType: { Annual: 'سنوية', Sick: 'مرضية', Casual: 'عارضة', Unpaid: 'بدون أجر', Other: 'أخرى' },
+  leaveType: {
+    Annual: 'سنوية',
+    Sick: 'مرضية',
+    DayOff: 'يوم راحة',
+    Shift: 'تغيير وردية',
+    Training: 'تدريب / خارج الجدول',
+    Holiday: 'إجازة رسمية',
+    Other: 'أخرى',
+  },
   status: { approved: 'مقبولة', rejected: 'مرفوضة', pending: 'قيد المراجعة' },
 
   units: {
@@ -57,7 +65,10 @@ export const ar: Dict = {
     noLeaveTitle: 'لا توجد إجازات في هذه الفترة',
     tryAnother: 'جرّب فترة أخرى أو امسح عوامل التصفية.',
     inThisPeriod: 'في هذه الفترة',
-    workingDays: 'أيام عمل',
+    workingDays: 'أيام إجازة',
+    notInRoster: 'غير موجود في قائمة FSRs',
+    notInRosterHint: 'هذا الاسم موجود في الطلبات وليس في تبويب FSRs',
+    writtenAs: (raw) => `مكتوب «${raw}»`,
     newestFirst: 'الأحدث أولًا',
     searchNameOrReason: 'ابحث بالاسم أو السبب',
     total: 'الإجمالي',
@@ -72,8 +83,8 @@ export const ar: Dict = {
     approved: 'مقبولة',
     rejected: 'مرفوضة',
     pending: 'قيد المراجعة',
-    onLeaveToday: 'في إجازة اليوم',
-    onLeaveTodayHint: 'إجازات معتمدة، حتى اليوم',
+    onLeaveToday: 'غائبون هذا الأسبوع',
+    onLeaveTodayHint: 'عدد الأشخاص، طلبات مقبولة',
     chartTitle: 'أيام الإجازة المعتمدة',
     chartBy: { week: 'حسب اليوم', month: 'حسب الأسبوع', year: 'حسب الشهر', all: 'حسب الشهر' },
     chartSubtitle: (label, by) => `${label}، ${by}، مقسّمة حسب نوع الإجازة`,
@@ -81,7 +92,7 @@ export const ar: Dict = {
     byTypeSubtitle: 'الطلبات والأيام المعتمدة',
     top5: 'الأعلى 5 في الأيام المعتمدة',
     whosOff: 'من في إجازة هذا الأسبوع',
-    whosOffSubtitle: 'الأسبوع الحالي · مقبولة وقيد المراجعة',
+    whosOffSubtitle: 'الأسبوع الحالي · إجازات، أيام راحة، مرضي، تدريب',
     nobodyOff: 'لا أحد في إجازة هذا الأسبوع',
   },
 
@@ -96,6 +107,7 @@ export const ar: Dict = {
     title: 'الموظفون',
     subtitle: (n, label) => `${people(n)} · ${label}`,
     search: 'ابحث بالاسم أو القسم',
+    searchName: 'ابحث بالاسم',
     searchLabel: 'البحث في الموظفين',
     noMatch: 'لا يوجد موظفون مطابقون للبحث',
     col: {
@@ -109,7 +121,7 @@ export const ar: Dict = {
       lastLeave: 'آخر إجازة',
     },
     totalRow: (n) => `الإجمالي (${n})`,
-    footnote: 'أعمدة السنوية / المرضية / العارضة تعرض الأيام المعتمدة. «آخر إجازة» هي تاريخ بداية أحدث إجازة معتمدة.',
+    footnote: 'عمودا السنوية / المرضية يعرضان الأيام المعتمدة. «آخر إجازة» هو أسبوع أحدث إجازة أو يوم راحة معتمد.',
   },
 
   report: {
