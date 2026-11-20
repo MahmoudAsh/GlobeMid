@@ -10,7 +10,7 @@ function initialTheme(): Theme {
   } catch {
     /* storage unavailable */
   }
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  return 'light' // light mode by default; the header toggle switches to dark
 }
 
 export function useTheme() {

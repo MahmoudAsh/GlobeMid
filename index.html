@@ -7,11 +7,9 @@
     <meta name="robots" content="noindex" />
     <title>Leave Tracker</title>
     <script>
-      // Apply the saved/system theme before first paint (avoids a flash).
+      // Light mode by default; apply a saved dark choice before first paint (avoids a flash).
       try {
-        var t = localStorage.getItem('leave-tracker-theme')
-        if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches))
-          document.documentElement.classList.add('dark')
+        if (localStorage.getItem('leave-tracker-theme') === 'dark') document.documentElement.classList.add('dark')
       } catch (e) {}
     </script>
   </head>
