@@ -148,3 +148,13 @@ The app uses a `HashRouter` and relative asset paths, so it works on any static 
 
 > The data will be visible to anyone with the URL. To limit access to company emails, put the site behind
 > **Cloudflare Access** (Zero Trust → Access → Applications), which is free for up to 50 users.
+
+### Troubleshooting
+
+- **"This project is disconnected from your Git account" / new pushes don't deploy:** on GitHub open
+  Settings → Applications → *Cloudflare Workers and Pages* → Configure, and give it access to this repository.
+  Then in Cloudflare: Pages project → Settings → Build → Git repository → Manage → reconnect it. *Retry
+  deployment* only re-runs an old commit; push a new commit to deploy the latest code.
+- **"Saving isn't set up yet" in the form:** the D1 binding `DB` is missing. Add it (see *One-time setup*)
+  and redeploy.
+- **"The manager password isn't set up":** add the `MANAGER_PASSWORD` secret and redeploy.
