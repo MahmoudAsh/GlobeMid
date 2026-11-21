@@ -23,8 +23,17 @@ export type Category =
   | 'other'
 
 export interface LeaveRow {
-  /** Original sheet row number. */
+  /**
+   * Unique id. Sheet rows: the original sheet row number.
+   * App rows (added from the dashboard): APP_ID_OFFSET + database id.
+   */
   id: number
+  /** Where the row comes from: the Google Sheet export, or the "Add leave request" form (Cloudflare D1). */
+  source: 'sheet' | 'app'
+  /** App rows only: database id (for deleting) and the exact dates the manager picked. */
+  appId?: number
+  exactStart?: Date
+  exactEnd?: Date
   /** Name exactly as typed (whitespace-normalized). */
   rawName: string
   /** Canonical name after aliases / FSR spelling. */
@@ -83,4 +92,6 @@ export interface LeaveData {
   rawStatusCounts: Record<string, number>
   /** Total data lines in the file (incl. skipped ones). */
   rawRowCount: number
+  /** Requests added from the dashboard (Cloudflare D1). */
+  app: { available: boolean; count: number }
 }

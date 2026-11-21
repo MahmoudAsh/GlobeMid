@@ -25,3 +25,7 @@ dist-ssr
 
 # Raw (password-protected) workbook exports stay out of git. The CSVs in src/data are the app's data.
 *.xlsx
+
+# Local Cloudflare secrets for `wrangler pages dev`
+.dev.vars
+.wrangler/

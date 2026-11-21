@@ -44,7 +44,8 @@ export function DataCheckPage() {
       <Section title={dc.summary}>
         <dl className="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
           <Item label={dc.rawRows} value={data.rawRowCount} />
-          <Item label={dc.parsedRows} value={data.rows.length} />
+          <Item label={dc.parsedRows} value={data.rows.length - data.app.count} />
+          <Item label={dc.appRows} value={data.app.available ? data.app.count : dc.appUnavailable} />
           <div className="sm:col-span-2">
             <dt className="text-muted-foreground">{dc.rawStatuses}</dt>
             <dd className="mt-1 flex flex-wrap gap-2">

@@ -121,6 +121,7 @@ export function parseWeeklyRequests(requestsCsv: string, fsrCsv: string, opts: P
 
     rows.push({
       id,
+      source: 'sheet',
       rawName,
       employee: person.canonical,
       employeeId: employeeId(person.canonical),
@@ -173,5 +174,6 @@ export function parseWeeklyRequests(requestsCsv: string, fsrCsv: string, opts: P
     sheetWeeks: [...new Set(rows.map((r) => r.weekKey))].sort(),
     rawStatusCounts,
     rawRowCount: raw.length,
+    app: { available: false, count: 0 },
   }
 }

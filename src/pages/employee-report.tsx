@@ -6,7 +6,9 @@ import { CategoryBreakdown } from '@/components/category-breakdown'
 import { EmployeeAvatar } from '@/components/employee-avatar'
 import { EmptyState } from '@/components/empty-state'
 import { CardSkeleton, TilesSkeleton } from '@/components/loading'
-import { RequestText } from '@/components/requests-table'
+import { RequestText, RowRef } from '@/components/requests-table'
+import { useLeaveActions } from '@/context/leave-actions'
+import { CalendarPlus } from 'lucide-react'
 import { Approx, NotInFsrTag } from '@/components/roster-tag'
 import { StatTile } from '@/components/stat-tile'
 import { StatusBadge } from '@/components/status-badge'
@@ -16,7 +18,7 @@ import { useLeaveData } from '@/context/data-context'
 import { useFilters } from '@/context/filters-context'
 import { useI18n } from '@/i18n/i18n-context'
 import { SHEET_CONFIG } from '@/lib/config'
-import { formatDays, formatWeek } from '@/lib/dates'
+import { formatDays, formatRangeExact, formatWeek } from '@/lib/dates'
 import { formatDate } from '@/lib/format'
 import { employeeStats, filterRows } from '@/lib/stats'
 import type { LeaveRow } from '@/lib/types'
@@ -28,6 +30,7 @@ export function EmployeeReportPage() {
   const { t } = useI18n()
   const rp = t.report
   const employee = employeesById.get(id)
+  const { openAdd } = useLeaveActions()
 
   const view = useMemo(() => {
     if (!employee) return null
@@ -76,15 +79,18 @@ export function EmployeeReportPage() {
   return (
     <div className="space-y-6">
       {back}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         <EmployeeAvatar name={employee.name} className="size-14 text-base" />
-        <div>
+        <div className="me-auto">
           <h1 className="text-2xl font-semibold tracking-tight">{employee.name}</h1>
           <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <span>{f.label}</span>
             {!employee.inFsrList && <NotInFsrTag />}
           </p>
         </div>
+        <Button variant="outline" onClick={() => openAdd(employee.name)}>
+          <CalendarPlus /> {t.form.open}
+        </Button>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
@@ -164,6 +170,11 @@ export function EmployeeReportPage() {
                     {rows.map((r) => (
                       <li key={r.id} className="grid gap-2 px-4 py-3 sm:grid-cols-[1fr_auto] sm:items-start">
                         <div className="space-y-1.5">
+                          {r.exactStart && r.exactEnd && (
+                            <p className="text-xs font-medium text-muted-foreground">
+                              {t.form.exactDates}: {formatRangeExact(r.exactStart, r.exactEnd)}
+                            </p>
+                          )}
                           <RequestText row={r} />
                           <CategoryBadges categories={r.categories} />
                           {r.rawName !== r.employee && <p className="text-xs text-muted-foreground">{t.common.writtenAs(r.rawName)}</p>}
@@ -180,7 +191,9 @@ export function EmployeeReportPage() {
                             </span>
                           )}
                           <StatusBadge status={r.status} />
-                          <span className="font-mono text-xs text-muted-foreground">{t.common.row(r.id)}</span>
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {r.source === 'app' ? <RowRef row={r} /> : t.common.row(r.id)}
+                          </span>
                         </div>
                       </li>
                     ))}

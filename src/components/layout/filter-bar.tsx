@@ -9,6 +9,9 @@ import { useFilters } from '@/context/filters-context'
 import { useI18n } from '@/i18n/i18n-context'
 import { CATEGORIES, STATUSES } from '@/lib/categories'
 import type { Period } from '@/lib/periods'
+import { useLeaveData } from '@/context/data-context'
+import { fmt, todayKey } from '@/lib/dates'
+import { useMemo } from 'react'
 
 const ALL = '__all'
 
@@ -31,9 +34,13 @@ export function FilterBar() {
             <Button variant="outline" size="icon" aria-label={t.period.previous} disabled={!f.canPrev} onClick={() => f.step(-1)}>
               <ChevronLeft className="rtl:rotate-180" />
             </Button>
-            <span aria-live="polite" className="min-w-36 rounded-lg border px-3 py-1 text-center text-sm font-medium tabular-nums">
-              {f.label}
-            </span>
+            {f.period === 'month' || f.period === 'year' ? (
+              <MonthYearPicker />
+            ) : (
+              <span aria-live="polite" className="min-w-36 rounded-lg border px-3 py-1 text-center text-sm font-medium tabular-nums">
+                {f.label}
+              </span>
+            )}
             <Button variant="outline" size="icon" aria-label={t.period.next} disabled={!f.canNext} onClick={() => f.step(1)}>
               <ChevronRight className="rtl:rotate-180" />
             </Button>
@@ -78,5 +85,52 @@ export function FilterBar() {
         </div>
       </div>
     </Card>
+  )
+}
+
+/** Month mode: month + year lists. Year mode: year list. Jumps straight to the chosen period. */
+function MonthYearPicker() {
+  const f = useFilters()
+  const { data } = useLeaveData()
+  const { t } = useI18n()
+  const [y, m] = f.anchor.split('-')
+  const years = useMemo(() => {
+    const set = new Set(data.sheetWeeks.map((w) => w.slice(0, 4)))
+    set.add(todayKey().slice(0, 4))
+    set.add(y)
+    return [...set].sort()
+  }, [data.sheetWeeks, y])
+  const months = useMemo(() => Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1).padStart(2, '0'), label: fmt(new Date(2026, i, 1), 'MMMM') })), [])
+  const go = (year: string, month: string) => f.setAnchor(`${year}-${month}-01`)
+
+  return (
+    <div className="flex items-center gap-1" aria-live="polite">
+      {f.period === 'month' && (
+        <Select value={m} onValueChange={(v) => go(y, v)}>
+          <SelectTrigger className="w-32" aria-label={t.period.month}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent position="popper">
+            {months.map((mo) => (
+              <SelectItem key={mo.value} value={mo.value}>
+                {mo.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+      <Select value={y} onValueChange={(v) => go(v, m)}>
+        <SelectTrigger className="w-24" aria-label={t.period.year}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent position="popper">
+          {years.map((yr) => (
+            <SelectItem key={yr} value={yr}>
+              {yr}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   )
 }

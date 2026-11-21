@@ -26,9 +26,10 @@ Requires Node 20+.
 | `#/employees` | One row per person: rows, approved / rejected / not marked, annual days, sick ≈, holidays ≈, birthdays, off changes, cancelled offs, and **FSR Annual Used vs Computed** (⚠ when they differ). Toggle *FSR list only / Everyone* |
 | `#/employees/:id` | Every row for that person, grouped by week (newest first): request text, categories, status, annual days, note. Also a per-category summary and the name variants merged into this person |
 | `#/requests` | All rows, with search, filters and pagination |
+| *Add leave request* | Navbar button: the manager records a leave (employee, day or range, days, type, approved / rejected, reason). Saved to Cloudflare D1 |
 | `#/data-check` | Unreadable weeks, non-Saturday weeks, unmatched names, unclassified request texts, and FSR vs computed mismatches. Use it to verify the numbers with the manager |
 
-The **filter bar** (Week / Month / Year / All time, prev / next, category, status) is shared by every page and
+The **filter bar** (Week / Month / Year / All time, prev / next, month and year lists, category, status) is shared by every page and
 stored in the URL, so views can be bookmarked. It **defaults to the year of the latest sheet week** (e.g. 2026).
 Week mode steps through the weeks that actually exist in the sheet.
 
@@ -90,6 +91,35 @@ date in `src/lib/config.ts` (or set `VITE_FSR_COUNTER_START`).
    rejected rows must have "Rejected" written in Status.
 
 `fsrs.csv` and `name-aliases.json` stay bundled; update them in the repo when the list changes.
+
+## Adding leave requests from the dashboard
+
+The **Add leave request** button (navbar, and on each employee's page) opens a form where the manager picks:
+the employee, one day or a date range, the number of days, the leave type (annual, sick, emergency, …), the
+decision (**Approved** or **Rejected**) and the reason. The request is saved straight away and shows up on
+every page and in every total. Requests added by mistake can be deleted (trash icon next to "Added in app").
+
+How it's stored:
+
+- A **Cloudflare D1** database (SQLite), through two small Pages Functions:
+  `functions/api/requests/index.ts` (GET list, POST add) and `functions/api/requests/[id].ts` (DELETE).
+  The table is created automatically on first use (same SQL as `migrations/0001_create_leave_requests.sql`).
+- Adding or deleting needs the **manager password**, kept as a Cloudflare secret (`MANAGER_PASSWORD`).
+  It is never in the code. The browser remembers it until the tab is closed.
+- An added request is counted in the **week of its start date** (Saturday → Friday), like a sheet row, and
+  keeps its exact dates for display. Annual requests add to "Annual days" (and to the computed FSR balance).
+- If the API isn't connected (e.g. plain `npm run dev`), the dashboard still works and shows the sheet only.
+
+**One-time setup in Cloudflare:**
+
+1. **Storage & Databases → D1 SQL Database → Create** → name it `leave-tracker`.
+2. Pages project → **Settings → Bindings → Add → D1 database**: variable name **`DB`**, database `leave-tracker`.
+3. Pages project → **Settings → Variables and Secrets → Add**: type **Secret**, name **`MANAGER_PASSWORD`**,
+   value = the password.
+4. **Deployments → Retry deployment** (bindings and secrets apply from the next deployment).
+
+**Locally:** create `.dev.vars` with `MANAGER_PASSWORD=...` (git-ignored), then `npm run preview:cf`. This
+runs the built site and the functions with a local D1 database on http://127.0.0.1:8788.
 
 ## Tests
 

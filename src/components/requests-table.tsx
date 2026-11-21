@@ -1,11 +1,15 @@
+import { Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { CategoryBadges } from '@/components/category'
 import { Approx, NotInFsrTag } from '@/components/roster-tag'
 import { StatusBadge } from '@/components/status-badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useFilters } from '@/context/filters-context'
+import { useLeaveActions } from '@/context/leave-actions'
+import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n/i18n-context'
-import { formatDays, formatWeek } from '@/lib/dates'
+import { formatDays, formatRangeExact, formatWeek } from '@/lib/dates'
 import type { LeaveRow } from '@/lib/types'
 
 /** Request text + note (partial decisions like "الخميس Rejected" live in the note). */
@@ -64,7 +68,9 @@ export function RequestsTable({ rows }: { rows: LeaveRow[] }) {
       <TableBody>
         {rows.map((r) => (
           <TableRow key={r.id} className="align-top">
-            <TableCell className="text-muted-foreground tabular-nums">{r.id}</TableCell>
+            <TableCell className="text-muted-foreground tabular-nums">
+              <RowRef row={r} />
+            </TableCell>
             <TableCell>
               <div className="flex items-center gap-1.5">
                 <Link to={{ pathname: `/employees/${r.employeeId}`, search }} className="font-medium whitespace-nowrap hover:underline">
@@ -75,8 +81,17 @@ export function RequestsTable({ rows }: { rows: LeaveRow[] }) {
               {r.rawName !== r.employee && <p className="text-xs text-muted-foreground">{t.common.writtenAs(r.rawName)}</p>}
             </TableCell>
             <TableCell className="whitespace-nowrap">
-              {formatWeek(r.weekStart, r.weekEnd)}
-              <p className="text-xs text-muted-foreground">{r.weekLabel}</p>
+              {r.exactStart && r.exactEnd ? (
+                <>
+                  {formatRangeExact(r.exactStart, r.exactEnd)}
+                  <p className="text-xs text-muted-foreground">{t.common.week}: {formatWeek(r.weekStart, r.weekEnd)}</p>
+                </>
+              ) : (
+                <>
+                  {formatWeek(r.weekStart, r.weekEnd)}
+                  <p className="text-xs text-muted-foreground">{r.weekLabel}</p>
+                </>
+              )}
             </TableCell>
             <TableCell>
               <RequestText row={r} />
@@ -92,5 +107,27 @@ export function RequestsTable({ rows }: { rows: LeaveRow[] }) {
         ))}
       </TableBody>
     </Table>
+  )
+}
+
+/** Sheet row number, or an "Added in app" badge with a delete button for requests added from the dashboard. */
+export function RowRef({ row }: { row: LeaveRow }) {
+  const { t } = useI18n()
+  const { remove, canWrite } = useLeaveActions()
+  if (row.source !== 'app') return <span>{row.id}</span>
+  return (
+    <span className="inline-flex items-center gap-1">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="cursor-help rounded-md bg-accent px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap text-accent-foreground">{t.form.appBadge}</span>
+        </TooltipTrigger>
+        <TooltipContent>{t.form.appBadgeHint(row.exactStart ? formatRangeExact(row.exactStart, row.exactEnd ?? row.exactStart) : row.weekLabel)}</TooltipContent>
+      </Tooltip>
+      {canWrite && (
+        <Button type="button" variant="ghost" size="icon-xs" aria-label={t.form.delete} title={t.form.delete} onClick={() => void remove(row)}>
+          <Trash2 className="text-muted-foreground" />
+        </Button>
+      )}
+    </span>
   )
 }

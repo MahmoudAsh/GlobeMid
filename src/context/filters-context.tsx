@@ -54,7 +54,8 @@ export function FilterProvider({ children }: { children: ReactNode }) {
 
   const p = params.get('p') as Period | null
   const period: Period = p && PERIODS.includes(p) ? p : DEFAULT_PERIOD
-  const latest = weeks.at(-1) ?? todayKey()
+  // Default anchor: the current sheet week (not a future week someone already booked leave for).
+  const latest = currentSheetWeek(weeks, todayKey()) ?? weeks.at(-1) ?? todayKey()
   const d = params.get('d')
   const rawAnchor = isValidKey(d) ? d : latest
   const anchor = period === 'week' ? snapToSheetWeek(rawAnchor, weeks) : rawAnchor

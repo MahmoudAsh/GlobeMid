@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["ES2023", "WebWorker"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "tsBuildInfoFile": "../node_modules/.tmp/tsconfig.functions.tsbuildinfo"
+  },
+  "include": [".", "../src/lib/app-requests/validate.ts"]
+}

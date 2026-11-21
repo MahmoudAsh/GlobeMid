@@ -9,6 +9,7 @@ const EMPTY: LeaveData = {
   sheetWeeks: [],
   rawStatusCounts: {},
   rawRowCount: 0,
+  app: { available: false, count: 0 },
 }
 
 interface DataState {

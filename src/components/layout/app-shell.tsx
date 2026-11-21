@@ -1,9 +1,11 @@
-import { CalendarHeart, LayoutDashboard, ListChecks, Menu, Moon, ShieldCheck, Sun, Users, type LucideIcon } from 'lucide-react'
+import { CalendarHeart, CalendarPlus, LayoutDashboard, ListChecks, Menu, Moon, ShieldCheck, Sun, Users, type LucideIcon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { useFilters } from '@/context/filters-context'
+import { useLeaveActions } from '@/context/leave-actions'
+import { Toaster } from '@/components/ui/sonner'
 import { useTheme, type Theme } from '@/hooks/use-theme'
 import { useI18n, type Lang } from '@/i18n/i18n-context'
 import { cn } from '@/lib/utils'
@@ -46,9 +48,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { t, lang, setLang, dir } = useI18n()
   const [open, setOpen] = useState(false)
   const { search } = useFilters()
+  const { openAdd } = useLeaveActions()
 
   return (
     <div className="min-h-svh bg-background">
+      <Toaster theme={theme} position="top-center" richColors dir={dir} />
       <header className="sticky top-0 z-30 border-b bg-background/85 backdrop-blur supports-backdrop-filter:bg-background/70">
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-4 sm:gap-3 sm:px-6">
           <Sheet open={open} onOpenChange={setOpen}>
@@ -79,6 +83,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <div className="ms-auto flex items-center gap-2">
+            <Button onClick={() => openAdd()} aria-label={t.form.open}>
+              <CalendarPlus />
+              <span className="hidden sm:inline">{t.form.open}</span>
+            </Button>
             <SegmentedSwitch<Lang>
               label={t.language.group}
               value={lang}

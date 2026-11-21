@@ -26,3 +26,9 @@ export function formatDays(n: number) {
   const r = Math.round(n * 10) / 10
   return Number.isInteger(r) ? String(r) : r.toFixed(1)
 }
+
+/** "22 Nov 2026" or "22 – 26 Nov 2026" for exact dates picked in the app. */
+export function formatRangeExact(start: Date, end: Date) {
+  if (start.getTime() === end.getTime()) return fmt(start, 'd MMM yyyy')
+  return formatWeek(start, end)
+}

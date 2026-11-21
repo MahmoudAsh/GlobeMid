@@ -5,6 +5,7 @@ import { CategoryColorVars } from '@/components/category'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { DataProvider, useLeaveData } from '@/context/data-context'
 import { FilterProvider } from '@/context/filters-context'
+import { LeaveActionsProvider } from '@/context/leave-actions'
 import { EmptyState } from '@/components/empty-state'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -67,9 +68,11 @@ export default function App() {
             <CategoryColorVars />
             <LanguageScope>
               <FilterProvider>
-                <AppShell>
-                  <Routed />
-                </AppShell>
+                <LeaveActionsProvider>
+                  <AppShell>
+                    <Routed />
+                  </AppShell>
+                </LeaveActionsProvider>
               </FilterProvider>
             </LanguageScope>
           </DataProvider>
